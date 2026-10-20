@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Verify Your Email</h2>
+<p>A 6-digit verification code was sent to <strong>{{ email }}</strong>. Please enter it below.</p>
+<p><small>Code expires in 24 hours.</small></p>
+
+<form method="POST" action="/verify">
+    <input type="hidden" name="email" value="{{ email }}">
+    <label for="code">Verification Code</label>
+    <input type="text" id="code" name="code" required maxlength="6" placeholder="123456" inputmode="numeric" pattern="[0-9]*">
+    <button type="submit">Verify &rarr;</button>
+</form>
+{% endblock %}

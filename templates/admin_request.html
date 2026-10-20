@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Admin Access</h2>
+<p>Request a one-time admin code to review and approve pending people.</p>
+<p>The code will be sent to the owner's email address.</p>
+
+<form method="POST" action="/admin/request-code">
+    <button type="request-code">Request Admin Code</button>
+</form>
+
+<p><small>After receiving the code by email, you'll be able to enter it on the next screen.</small></p>
+{% endblock %}

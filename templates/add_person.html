@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Your Information</h2>
+<p>Fill in your details. You'll receive a verification code by email before your request is sent for approval.</p>
+
+<form method="POST" action="/add">
+    <label for="name">Name</label>
+    <input type="text" id="name" name="name" required placeholder="e.g. Alice Novak">
+
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" required placeholder="e.g. alice@example.com">
+
+    <label for="date_of_birth">Date of Birth</label>
+    <input type="date" id="date_of_birth" name="date_of_birth">
+
+    <label for="first_day_job">First Day in Job</label>
+    <input type="date" id="first_day_job" name="first_day_job">
+
+    <label for="name_day">Name Day (MM-DD)</label>
+    <input type="text" id="name_day" name="name_day" placeholder="e.g. 06-24" maxlength="5">
+
+    <label for="about_info">About Yourself</label>
+    <textarea id="about_info" name="about_info" placeholder="A few words about you..."></textarea>
+
+    <button type="submit">Submit &rarr; receive verification code</button>
+</form>
+{% endblock %}

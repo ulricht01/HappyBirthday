@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>People</h2>
+
+{% if people %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th>DOB</th>
+                <th>Name Day</th>
+                <th>First Day Job</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for person in people %}
+            <tr>
+                <td>{{ person.name }}</td>
+                <td>{{ person.email }}</td>
+                <td><span class="status-badge status-{{ person.status }}">{{ person.status }}</span></td>
+                <td>{{ person.date_of_birth or '—' }}</td>
+                <td>{{ person.name_day or '—' }}</td>
+                <td>{{ person.first_day_job or '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <form method="POST" action="/send-notifications" style="margin-top: 24px;">
+        <button type="submit">Send Notifications for Upcoming Events (+30 days)</button>
+    </form>
+    <p><small>Emails will be sent to everyone except the person whose event is upcoming.</small></p>
+{% else %}
+    <p>No people in the database yet.</p>
+{% endif %}
+
+<p><a href="/">Add a person</a></p>
+{% endblock %}

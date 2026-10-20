@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Admin Dashboard</h2>
+
+<h3>Pending Approvals</h3>
+{% if pending %}
+    {% for person in pending %}
+    <div style="border: 1px solid #e5e7eb; padding: 16px; border-radius: 8px; margin-bottom: 16px; background: #fff;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <strong>{{ person.name }}</strong>
+                <span class="status-badge status-pending_approval">pending approval</span>
+                <div style="font-size: 0.85rem; color: #6b7280; margin-top: 4px;">
+                    {{ person.email }} &bull; {{ person.date_of_birth or '—' }} &bull; {{ person.name_day or '—' }} &bull; {{ person.first_day_job or '—' }}
+                </div>
+                {% if person.about_info %}
+                <div style="margin-top: 6px;"><em>{{ person.about_info }}</em></div>
+                {% endif %}
+            </div>
+            <div class="actions">
+                <form method="POST" action="/admin/approve/{{ person.id }}" style="display: inline; margin-right: 8px;">
+                    <button type="submit" onclick="return confirm('Approve {{ person.name }}?')">Approve</button>
+                </form>
+                <form method="POST" action="/admin/reject/{{ person.id }}" style="display: inline;">
+                    <button type="submit" class="secondary" onclick="return confirm('Reject {{ person.name }}?')">Reject</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <p>No pending approvals.</p>
+{% endif %}
+
+<h3>All People</h3>
+{% if all_people %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th>DOB</th>
+                <th>Name Day</th>
+                <th>First Day Job</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for person in all_people %}
+            <tr>
+                <td>{{ person.name }}</td>
+                <td>{{ person.email }}</td>
+                <td><span class="status-badge status-{{ person.status }}">{{ person.status }}</span></td>
+                <td>{{ person.date_of_birth or '—' }}</td>
+                <td>{{ person.name_day or '—' }}</td>
+                <td>{{ person.first_day_job or '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No people in the database.</p>
+{% endif %}
+
+<p><a href="/admin/logout">Logout</a></p>
+{% endblock %}
