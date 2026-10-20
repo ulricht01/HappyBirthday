@@ -212,7 +212,7 @@ def create_admin_code(plain_code, expires_minutes=15):
     from werkzeug.security import generate_password_hash
     conn = get_connection()
     c = conn.cursor()
-    code_hash = generate_password_hash(plain_code)
+    code_hash = generate_password_hash(plain_code, method="pbkdf2:sha256")
     expires = (datetime.utcnow() + timedelta(minutes=expires_minutes)).isoformat()
     created = now_iso()
     c.execute("""
