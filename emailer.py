@@ -17,21 +17,29 @@ def _send(msg: EmailMessage):
 
     if not host or not user or not pwd:
         # Fallback for local testing without SMTP configured
-        print("=" * 60)
-        print("EMAIL (SMTP not configured, printing to stdout):")
-        print(msg)
-        print("=" * 60)
+        _print_email(msg)
         return
 
-    if port == 465:
-        server = smtplib.SMTP_SSL(host, port)
-    else:
-        server = smtplib.SMTP(host, port)
-        server.starttls()
-    if user and pwd:
-        server.login(user, pwd)
-    server.send_message(msg)
-    server.quit()
+    try:
+        if port == 465:
+            server = smtplib.SMTP_SSL(host, port)
+        else:
+            server = smtplib.SMTP(host, port)
+            server.starttls()
+        if user and pwd:
+            server.login(user, pwd)
+        server.send_message(msg)
+        server.quit()
+    except Exception:
+        # SMTP server unavailable or misconfigured — fall back to stdout
+        _print_email(msg)
+
+
+def _print_email(msg: EmailMessage):
+    print("=" * 60)
+    print("EMAIL (SMTP not configured or unavailable, printing to stdout):")
+    print(msg)
+    print("=" * 60)
 
 
 def send_verification_code(to_email, code):
