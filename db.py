@@ -1,13 +1,21 @@
 import sqlite3
 import os
 from datetime import datetime, timedelta, date
+from urllib.parse import urlparse
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "birthdays.db")
+DB_URL = os.getenv("DATABASE_URL", "sqlite:///birthdays.db")
 
 
 def get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    """Connect to SQLite (default) or PostgreSQL via DATABASE_URL."""
+    if DB_URL.startswith("sqlite"):
+        conn = sqlite3.connect(
+            DB_URL.replace("sqlite:///", ""), row_factory=sqlite3.Row
+        )
+    else:
+        import psycopg2
+        conn = psycopg2.connect(DB_URL)
+        conn.row_factory = sqlite3.Row
     return conn
 
 

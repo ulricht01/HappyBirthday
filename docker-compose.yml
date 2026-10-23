@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: happybirthday
+      POSTGRES_USER: happybirthday
+      POSTGRES_PASSWORD: changeme_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U happybirthday -d happybirthday"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    command: >
+      sh -c "sleep 5 &&
+             DATABASE_URL=postgresql://happybirthday:changeme_secret@db:5432/happybirthday
+             python app.py"
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=replace_with_strong_random_secret
+      - DATABASE_URL=postgresql://happybirthday:changeme_secret@db:5432/happybirthday
+      - OWNER_EMAIL=owner@example.com
+    ports:
+      - "5001:5001"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./templates:/app/templates:ro
+
+volumes:
+  postgres_data:

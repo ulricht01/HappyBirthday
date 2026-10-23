@@ -1,10 +1,8 @@
 # Environment variables (contains secrets)
 .env
 
-# SQLite database
-birthdays.db
-
-# Python
+# SQLite database (only used when DATABASE_URL is not set)
+*.db
 __pycache__/
 *.py[cod]
 *.pyo
