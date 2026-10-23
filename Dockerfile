@@ -1,7 +1,7 @@
-# Production-grade Python 3.9 Alpine image with Postgres client libraries
-FROM python:3.9-slim-bullseye
+# Pterodactyl-friendly Python 3.12 yolk image
+FROM ghcr.io/parkervcp/yolks:python_3.12
 
-# Install psycopg2 build dependencies
+# Install psycopg2 build dependencies (libpq-dev needed for psycopg2-binary)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
