@@ -218,4 +218,7 @@ def send_notifications():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5001)
+    # Pterodactyl exposes the allocated port as SERVER_PORT
+    port = int(os.getenv("SERVER_PORT") or os.getenv("PORT") or 5001)
+    debug = os.getenv("FLASK_DEBUG", "0") == "1"
+    app.run(debug=debug, host="0.0.0.0", port=port)

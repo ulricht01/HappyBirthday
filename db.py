@@ -1,24 +1,54 @@
 import os
+import sqlite3
 from datetime import datetime, timedelta, date
 
-import psycopg2
-import psycopg2.extras
+from dotenv import load_dotenv
 
-DB_URL = os.getenv("DATABASE_URL")
-if not DB_URL:
-    raise RuntimeError(
-        "DATABASE_URL environment variable is required. "
-        "Example: postgresql://user:password@localhost:5432/happybirthday"
-    )
+load_dotenv()
+
+# Falls back to SQLite next to this file (/home/container/birthdays.db on Pterodactyl)
+_DEFAULT_SQLITE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "birthdays.db")
+DB_URL = os.getenv("DATABASE_URL") or f"sqlite:///{_DEFAULT_SQLITE_PATH}"
+USE_SQLITE = DB_URL.startswith("sqlite")
+
+if not USE_SQLITE:
+    import psycopg2
+    import psycopg2.extras
+
+
+def _sqlite_dict_row(cursor, row):
+    return {col[0]: value for col, value in zip(cursor.description, row)}
+
+
+class _SqliteCursor:
+    """Adapts the PostgreSQL-style SQL used in this module to SQLite."""
+
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def execute(self, sql, params=()):
+        sql = sql.replace("%s", "?").replace(
+            "SERIAL PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT"
+        )
+        return self._cursor.execute(sql, params)
+
+    def __getattr__(self, name):
+        return getattr(self._cursor, name)
 
 
 def get_connection():
+    if USE_SQLITE:
+        conn = sqlite3.connect(DB_URL[len("sqlite:///"):])
+        conn.row_factory = _sqlite_dict_row
+        return conn
     conn = psycopg2.connect(DB_URL)
     return conn
 
 
 def _dict_cursor(conn):
-    """Return a cursor that yields rows as dict-like RealDictRow objects."""
+    """Return a cursor that yields rows as dicts."""
+    if USE_SQLITE:
+        return _SqliteCursor(conn.cursor())
     return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
 
