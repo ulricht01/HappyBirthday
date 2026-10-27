@@ -1,6 +1,7 @@
 import os
 import secrets
 import string
+from collections import defaultdict
 from datetime import datetime, timedelta
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash
@@ -25,7 +26,7 @@ from emailer import (
     send_verification_code,
     send_owner_notification,
     send_admin_code,
-    send_event_notification,
+    send_event_notifications,
 )
 
 app = Flask(__name__)
@@ -201,17 +202,44 @@ def send_notifications():
     sent = 0
     skipped_self = 0
 
+    # Group events by recipient, skipping each person's own events
+    recipient_events = defaultdict(list)
     for event_person, event_type, event_date, days_until in events:
         for recipient in approved:
             if recipient["id"] == event_person["id"]:
                 skipped_self += 1
                 continue
-            send_event_notification(recipient["email"], event_person, event_type, days_until)
-            sent += 1
+            recipient_events[recipient["id"]].append({
+                "recipient": recipient,
+                "event_person": event_person,
+                "event_type": event_type,
+                "event_date": event_date,
+                "days_until": days_until,
+            })
+
+    for recipient_id, items in recipient_events.items():
+        recipient = items[0]["recipient"]
+        event_list = [
+            {
+                "person_name": it["event_person"]["name"],
+                "event_type": it["event_type"],
+                "event_date": it["event_date"],
+                "days_until": it["days_until"],
+            }
+            for it in items
+        ]
+        # Sort chronologically by event date
+        event_list.sort(key=lambda ev: ev["event_date"])
+        send_event_notifications(
+            recipient["email"],
+            recipient.get("name", recipient["email"]),
+            event_list,
+        )
+        sent += len(event_list)
 
     flash(
-        f"Notifications processed: {sent} email(s) sent for {len(events)} upcoming event(s). "
-        f"{skipped_self} self-notifications skipped.",
+        f"Odesláno {sent} e-mailů pro {len(recipient_events)} příjemců. "
+        f"{skipped_self} vlastních událostí přeskočeno.",
         "success",
     )
     return redirect(url_for("list_people"))

@@ -1,5 +1,6 @@
 import os
 import smtplib
+from datetime import date
 from email.message import EmailMessage
 from dotenv import load_dotenv
 
@@ -83,58 +84,101 @@ def send_admin_code(to_email, code):
     )
     _send(msg)
 
+def _events_html_table(events):
+    """Build an HTML table listing only the upcoming events (no personal bio)."""
+    event_labels_cs = {
+        "birthday": "Narozeniny",
+        "name_day": "Svatky",
+        "job_anniversary": "Vyroci v zamestnani",
+    }
 
-def _person_html_table(person):
-    rows = [
-        ("Name", person.get("name", "")),
-        ("Email", person.get("email", "")),
-        ("Date of birth", person.get("date_of_birth") or "—"),
-        ("First day in job", person.get("first_day_job") or "—"),
-        ("Name day", person.get("name_day") or "—"),
-        ("About", person.get("about_info") or "—"),
-    ]
-    html = "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse; font-family:sans-serif; font-size:14px;'>"
-    for label, value in rows:
-        html += f"<tr><td style='font-weight:bold;'>{label}</td><td>{value}</td></tr>"
+    html = (
+        "<table border='1' cellpadding='6' cellspacing='0' "
+        "style='border-collapse:collapse; font-family:sans-serif; font-size:14px;'>"
+    )
+    html += (
+        "<tr>"
+        "<th style='font-weight:bold; text-align:left;'>Udalost</th>"
+        "<th style='font-weight:bold; text-align:left;'>Osoba</th>"
+        "<th style='font-weight:bold; text-align:left;'>Datum</th>"
+        "<th style='font-weight:bold; text-align:left;'>Za kolik dni</th>"
+        "</tr>"
+    )
+    for ev in events:
+        label = event_labels_cs.get(ev["event_type"], ev["event_type"])
+        event_date = ev["event_date"]
+        if hasattr(event_date, "strftime"):
+            date_str = event_date.strftime("%d. %m. %Y")
+        else:
+            date_str = str(event_date)
+        html += (
+            f"<tr>"
+            f"<td>{label}</td>"
+            f"<td>{ev['person_name']}</td>"
+            f"<td>{date_str}</td>"
+            f"<td>{ev['days_until']} dni</td>"
+            f"</tr>"
+        )
     html += "</table>"
     return html
 
 
-def send_event_notification(recipient_email, event_person, event_type, days_until):
-    """Send an email to one recipient about an upcoming event for another person."""
-    event_labels = {
-        "birthday": "Birthday",
-        "name_day": "Name day",
-        "job_anniversary": "Work anniversary",
+def send_event_notifications(recipient_email, recipient_name, events):
+    """Send one email to a recipient with a table of upcoming events (not their own)."""
+    event_labels_cs = {
+        "birthday": "Narozeniny",
+        "name_day": "Svatky",
+        "job_anniversary": "Vyroci v zamestnani",
     }
-    label = event_labels.get(event_type, event_type)
-    owner = os.getenv("FROM_EMAIL", "HappyBirthday <noreply@example.com>")
+
+    if len(events) == 1:
+        label = event_labels_cs.get(events[0]["event_type"], events[0]["event_type"])
+        subject = f"\U0001f389 {label} je za {events[0]['days_until']} dnu"
+    else:
+        subject = f"\U0001f389 Blizici se udalosti ({len(events)})"
 
     msg = EmailMessage()
     msg["To"] = recipient_email
-    msg["Subject"] = f"🎉 {event_person['name']}'s {label} is in {days_until} day(s)"
+    msg["Subject"] = subject
 
     html = f"""
     <html>
     <body style='font-family:sans-serif;'>
-      <h2>🎉 Upcoming {label}</h2>
-      <p>{event_person['name']}'s {label.lower()} is in <b>{days_until}</b> day(s).</p>
-      <p>Here is their info:</p>
-      {_person_html_table(event_person)}
-      <p><br/><br/>HappyBirthday Team</p>
+      <h2>\U0001f389 Blizici se udalosti</h2>
+      <p>Ahoj {recipient_name},</p>
+      <p>Mame pro vas seznam nadchazejicich udalosti (krome vasich vlastnich):</p>
+      {_events_html_table(events)}
+      <p><br/><br/>Prejeme hezky den,<br/>Tym HappyBirthday</p>
     </body>
     </html>
     """
-    msg.set_content(
-        f"🎉 Upcoming {label}\n\n"
-        f"{event_person['name']}'s {label.lower()} is in {days_until} day(s).\n\n"
-        f"Name: {event_person.get('name', '')}\n"
-        f"Email: {event_person.get('email', '')}\n"
-        f"Date of birth: {event_person.get('date_of_birth') or '—'}\n"
-        f"First day in job: {event_person.get('first_day_job') or '—'}\n"
-        f"Name day: {event_person.get('name_day') or '—'}\n"
-        f"About: {event_person.get('about_info') or '—'}\n\n"
-        f"HappyBirthday Team"
+
+    lines = [
+        f"\U0001f389 Blizici se udalosti",
+        "",
+        f"Ahoj {recipient_name},",
+        "",
+        "Mame pro vas seznam nadchazejicich udalosti (krome vasich vlastnich):",
+        "",
+    ]
+    for ev in events:
+        label = event_labels_cs.get(ev["event_type"], ev["event_type"])
+        event_date = ev["event_date"]
+        if hasattr(event_date, "strftime"):
+            date_str = event_date.strftime("%d. %m. %Y")
+        else:
+            date_str = str(event_date)
+        lines.append(
+            f"- {label}: {ev['person_name']}, {date_str} (za {ev['days_until']} dni)"
+        )
+    lines.extend(
+        [
+            "",
+            "Prejeme hezky den,",
+            "Tym HappyBirthday",
+        ]
     )
+
+    msg.set_content("\n".join(lines))
     msg.add_alternative(html, subtype="html")
     _send(msg)
