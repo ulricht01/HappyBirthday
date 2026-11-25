@@ -19,15 +19,15 @@ services:
 
   web:
     build: .
+    env_file:
+      - .env
     command: >
       sh -c "sleep 5 &&
              DATABASE_URL=postgresql://happybirthday:changeme_secret@db:5432/happybirthday
              python app.py"
     environment:
       - FLASK_ENV=production
-      - SECRET_KEY=replace_with_strong_random_secret
       - DATABASE_URL=postgresql://happybirthday:changeme_secret@db:5432/happybirthday
-      - OWNER_EMAIL=owner@example.com
     ports:
       - "5001:5001"
     depends_on:

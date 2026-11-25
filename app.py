@@ -27,12 +27,14 @@ from emailer import (
     send_owner_notification,
     send_admin_code,
     send_event_notifications,
+    verify_smtp_config,
 )
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
 
 init_db()
+verify_smtp_config()
 
 
 # ---------------------------------------------------------------------------

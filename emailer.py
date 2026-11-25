@@ -1,39 +1,161 @@
 import os
+import sys
 import smtplib
+import logging
 from datetime import date
 from email.message import EmailMessage
-from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # Fallback parser if python-dotenv is not installed in the current environment
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip().strip("'\"")
+                    if k not in os.environ:
+                        os.environ[k] = v
+
+logger = logging.getLogger("emailer")
 
 
-def _send(msg: EmailMessage):
+def _send(msg: EmailMessage) -> bool:
     host = os.getenv("SMTP_HOST")
     port = int(os.getenv("SMTP_PORT", "587") or 587)
     user = os.getenv("SMTP_USER")
     pwd = os.getenv("SMTP_PASS")
     from_email = os.getenv("FROM_EMAIL", "HappyBirthday <noreply@example.com>")
+    timeout = int(os.getenv("SMTP_TIMEOUT", "10") or 10)
+    use_tls_env = os.getenv("SMTP_USE_TLS", "true").strip().lower()
+    use_tls = use_tls_env not in ("0", "false", "no", "off")
 
-    msg["From"] = from_email
+    if not msg.get("From"):
+        msg["From"] = from_email
 
+    # Check if host or credentials are missing
     if not host or not user or not pwd:
         # Fallback for local testing without SMTP configured
         _print_email(msg)
-        return
+        return False
 
     try:
         if port == 465:
-            server = smtplib.SMTP_SSL(host, port)
+            server = smtplib.SMTP_SSL(host, port, timeout=timeout)
         else:
-            server = smtplib.SMTP(host, port)
-            server.starttls()
+            server = smtplib.SMTP(host, port, timeout=timeout)
+            if use_tls:
+                server.starttls()
         if user and pwd:
             server.login(user, pwd)
         server.send_message(msg)
         server.quit()
-    except Exception:
-        # SMTP server unavailable or misconfigured — fall back to stdout
+        logger.info("Email sent successfully via SMTP to %s", msg.get("To"))
+        return True
+    except Exception as exc:
+        # SMTP server unavailable or misconfigured — log warning and fall back to stdout
+        logger.warning(
+            "SMTP send failed (%s:%s) for recipient %s: %s. Falling back to stdout.",
+            host, port, msg.get("To"), exc
+        )
+        print(f"[SMTP WARNING] Failed to send email via {host}:{port}: {exc}", file=sys.stderr)
         _print_email(msg)
+        return False
+
+
+def verify_smtp_config(send_test_email: bool = False, target_email: str = None) -> bool:
+    """
+    Check SMTP configuration and test server connectivity/authentication.
+    Can be called on application startup or standalone.
+    """
+    host = os.getenv("SMTP_HOST")
+    port_str = os.getenv("SMTP_PORT", "587")
+    user = os.getenv("SMTP_USER")
+    pwd = os.getenv("SMTP_PASS")
+    from_email = os.getenv("FROM_EMAIL", "HappyBirthday <noreply@example.com>")
+    timeout = int(os.getenv("SMTP_TIMEOUT", "10") or 10)
+    use_tls_env = os.getenv("SMTP_USE_TLS", "true").strip().lower()
+    use_tls = use_tls_env not in ("0", "false", "no", "off")
+
+    print("\n" + "=" * 65)
+    print("SMTP STARTUP DIAGNOSTIC CHECK")
+    print("=" * 65)
+
+    if not host or not user or not pwd:
+        print("[SMTP] Status: NOT CONFIGURED (SMTP_HOST, SMTP_USER, or SMTP_PASS missing).")
+        print("[SMTP] Fallback: Outgoing emails will be printed to stdout.")
+        print("=" * 65 + "\n")
+        return False
+
+    placeholders = []
+    if host in ("smtp.gmail.com",) and user == "your-email@gmail.com":
+        placeholders.append("SMTP_USER='your-email@gmail.com'")
+    if pwd == "your-app-password":
+        placeholders.append("SMTP_PASS='your-app-password'")
+
+    if placeholders:
+        print(f"[SMTP WARNING] Placeholder values detected: {', '.join(placeholders)}")
+        print("[SMTP WARNING] Please update .env with your real SMTP credentials.")
+        print("[SMTP] Fallback: Outgoing emails will be printed to stdout.")
+        print("=" * 65 + "\n")
+        return False
+
+    try:
+        port = int(port_str)
+    except ValueError:
+        print(f"[SMTP ERROR] Invalid SMTP_PORT: '{port_str}'")
+        print("=" * 65 + "\n")
+        return False
+
+    print(f"[SMTP] Connecting to {host}:{port} as '{user}' (timeout: {timeout}s)...")
+    try:
+        if port == 465:
+            server = smtplib.SMTP_SSL(host, port, timeout=timeout)
+        else:
+            server = smtplib.SMTP(host, port, timeout=timeout)
+            if use_tls:
+                server.starttls()
+
+        server.login(user, pwd)
+        print(f"[SMTP SUCCESS] Connected and authenticated successfully to {host}:{port}!")
+
+        if send_test_email and target_email:
+            msg = EmailMessage()
+            msg["To"] = target_email
+            msg["From"] = from_email
+            msg["Subject"] = "HappyBirthday SMTP Test Email"
+            msg.set_content(
+                "Hello,\n\n"
+                "This is a test email sent from HappyBirthday.\n"
+                "If you see this, your SMTP configuration is working properly!\n\n"
+                "HappyBirthday Team"
+            )
+            server.send_message(msg)
+            print(f"[SMTP SUCCESS] Test email sent successfully to {target_email}.")
+
+        server.quit()
+        print("=" * 65 + "\n")
+        return True
+    except smtplib.SMTPAuthenticationError as exc:
+        print(f"[SMTP ERROR] Authentication failed: {exc}")
+        if "office365" in host.lower() or "outlook" in host.lower():
+            print("  -> Microsoft 365 Tip: If 2FA/MFA is enabled, an App Password is required.")
+            print("  -> Also check if your IT admin enabled 'Authenticated SMTP' for this mailbox.")
+        elif "gmail" in host.lower():
+            print("  -> Gmail Tip: Generate an App Password at https://myaccount.google.com/apppasswords")
+        print("[SMTP] Fallback: Outgoing emails will be printed to stdout.")
+        print("=" * 65 + "\n")
+        return False
+    except Exception as exc:
+        print(f"[SMTP ERROR] Connection/TLS failed: {exc}")
+        print("[SMTP] Fallback: Outgoing emails will be printed to stdout.")
+        print("=" * 65 + "\n")
+        return False
 
 
 def _print_email(msg: EmailMessage):
