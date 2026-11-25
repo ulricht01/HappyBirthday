@@ -126,7 +126,7 @@ def init_db():
 
 def get_name_day_for_first_name(name):
     """
-    Returns (code 'MM-DD', formatted 'D. M.', names '...') for the person's first name,
+    Returns (code 'DD.MM', formatted 'D. M.', names '...') for the person's first name,
     or (None, None, None) if not found.
     """
     matches = czech_calendar.find_name_day(name)
@@ -135,13 +135,43 @@ def get_name_day_for_first_name(name):
     return None, None, None
 
 
-def get_name_day_info(code_or_month, day=None):
-    """Returns official names for a date, e.g. code='03-19' or month=3, day=19."""
-    if day is None and isinstance(code_or_month, str) and "-" in code_or_month:
+def normalize_name_day(val):
+    """Normalizes name day string to 'DD.MM' format."""
+    if not val:
+        return None
+    val = str(val).strip()
+    if "." in val:
         try:
-            m, d = code_or_month.split("-")
-            month, day = int(m), int(d)
+            parts = val.split(".")
+            return f"{int(parts[0]):02d}.{int(parts[1]):02d}"
         except Exception:
+            return val
+    elif "-" in val:
+        try:
+            parts = val.split("-")
+            return f"{int(parts[1]):02d}.{int(parts[0]):02d}"
+        except Exception:
+            return val
+    return val
+
+
+def get_name_day_info(code_or_month, day=None):
+    """Returns official names for a date, e.g. code='19.03' (DD.MM), '03-19' (MM-DD), or month=3, day=19."""
+    if day is None and isinstance(code_or_month, str):
+        s = code_or_month.strip()
+        if "." in s:
+            try:
+                d_str, m_str = s.split(".")[:2]
+                day, month = int(d_str), int(m_str)
+            except Exception:
+                return None
+        elif "-" in s:
+            try:
+                m_str, d_str = s.split("-")[:2]
+                month, day = int(m_str), int(d_str)
+            except Exception:
+                return None
+        else:
             return None
     elif isinstance(code_or_month, int) and day is not None:
         month = code_or_month
@@ -161,8 +191,10 @@ def add_or_update_person(email, name, date_of_birth, first_day_job, name_day, ab
     c = _dict_cursor(conn)
     now = now_iso()
 
-    # Auto-detect Czech name day if not explicitly provided
-    if not name_day:
+    # Normalize or auto-detect Czech name day (DD.MM)
+    if name_day:
+        name_day = normalize_name_day(name_day)
+    else:
         auto_code, _, _ = get_name_day_for_first_name(name)
         if auto_code:
             name_day = auto_code
@@ -194,7 +226,7 @@ def add_or_update_person(email, name, date_of_birth, first_day_job, name_day, ab
     return person_id
 
 
-def add_or_update_person_entra(email, name, date_of_birth, first_day_job, name_day, about_info, status="pending_approval"):
+def add_or_update_person_entra(email, name, date_of_birth, first_day_job, name_day, about_info, status="approved"):
     """
     Adds or updates a person verified via Microsoft Entra ID SSO.
     Email verification is skipped as Entra accounts are pre-authenticated.
@@ -203,8 +235,10 @@ def add_or_update_person_entra(email, name, date_of_birth, first_day_job, name_d
     c = _dict_cursor(conn)
     now = now_iso()
 
-    # Auto-detect Czech name day if not explicitly provided
-    if not name_day:
+    # Normalize or auto-detect Czech name day (DD.MM)
+    if name_day:
+        name_day = normalize_name_day(name_day)
+    else:
         auto_code, _, _ = get_name_day_for_first_name(name)
         if auto_code:
             name_day = auto_code
@@ -346,12 +380,19 @@ def get_upcoming_events(days_ahead=30):
                 pass
         if p["name_day"]:
             try:
-                month, day = p["name_day"].split("-")
-                nd = date(today.year, int(month), int(day))
-                if nd < today:
-                    nd = date(today.year + 1, int(month), int(day))
-                if today <= nd <= cutoff:
-                    events.append(("name_day", nd, (nd - today).days))
+                s = str(p["name_day"]).strip()
+                if "." in s:
+                    day, month = s.split(".")[:2]
+                elif "-" in s:
+                    month, day = s.split("-")[:2]
+                else:
+                    month, day = None, None
+                if month and day:
+                    nd = date(today.year, int(month), int(day))
+                    if nd < today:
+                        nd = date(today.year + 1, int(month), int(day))
+                    if today <= nd <= cutoff:
+                        events.append(("name_day", nd, (nd - today).days))
             except (ValueError, AttributeError):
                 pass
         if p["first_day_job"]:

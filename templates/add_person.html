@@ -88,32 +88,33 @@
 
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
                 <div class="field">
-                    <label for="date_of_birth" class="label">Datum narození</label>
-                    <input type="date" id="date_of_birth" name="date_of_birth" class="input"
+                    <label for="date_of_birth" class="label">Datum narození *</label>
+                    <input type="date" id="date_of_birth" name="date_of_birth" class="input" required
                            value="{{ entra_user.date_of_birth if entra_user else '' }}">
-                    <div class="help">Pro gratulaci k narozeninám.</div>
+                    <div class="help">Povinný údaj pro gratulaci k narozeninám.</div>
                 </div>
 
                 <div class="field">
-                    <label for="first_day_job" class="label">Nástup do zaměstnání (SPŠUL)</label>
-                    <input type="date" id="first_day_job" name="first_day_job" class="input"
+                    <label for="first_day_job" class="label">Nástup do zaměstnání (SPŠUL) *</label>
+                    <input type="date" id="first_day_job" name="first_day_job" class="input" required
                            value="{{ entra_user.first_day_job if entra_user else '' }}">
-                    <div class="help">Pro připomínání pracovního výročí.</div>
+                    <div class="help">Povinný údaj pro připomínání pracovního výročí.</div>
                 </div>
             </div>
 
             <div class="field">
-                <label for="name_day" class="label">Datum svátku (MM-DD)</label>
+                <label for="name_day" class="label">Datum svátku (DD.MM) *</label>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                    <input type="text" id="name_day" name="name_day" class="input"
+                    <input type="text" id="name_day" name="name_day" class="input" required
                            style="max-width: 140px;"
-                           placeholder="např. 11-25"
+                           placeholder="např. 25.11"
+                           pattern="\d{1,2}\.\d{1,2}"
                            maxlength="5"
                            value="{{ entra_user.name_day if entra_user else '' }}">
                     <span id="name-day-label" style="font-size: 0.95rem; font-weight: 500; color: var(--color-accent-text);"></span>
                 </div>
                 <div class="help" id="name-day-help">
-                    Vyplní se automaticky podle vašeho křestního jména, nebo můžete datum upravit (formát MM-DD, např. <code>03-19</code> pro Josefa).
+                    Vyplní se automaticky podle vašeho jména, nebo jej zadejte ve formátu DD.MM (např. <code>25.11</code> pro Kateřinu nebo <code>19.03</code> pro Josefa).
                 </div>
             </div>
 
@@ -191,12 +192,22 @@ document.addEventListener("DOMContentLoaded", function () {
         fetch("/api/name-day?name=" + encodeURIComponent(nameInput.value || ""))
             .then(res => res.json())
             .then(data => {
-                if (data.found && data.code === nameDayInput.value) {
+                if (data.found) {
                     nameDayLabel.textContent = "🎉 " + data.formatted + " (" + data.names + ")";
                 }
             })
             .catch(() => {});
     }
+
+    nameDayInput.addEventListener("input", function () {
+        const val = nameDayInput.value.trim();
+        if (val.includes(".")) {
+            const parts = val.split(".");
+            if (parts.length >= 2 && parts[0] && parts[1] && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                nameDayLabel.textContent = "🎉 " + parseInt(parts[0]) + ". " + parseInt(parts[1]) + ".";
+            }
+        }
+    });
 });
 </script>
 {% endblock %}

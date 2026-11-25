@@ -453,7 +453,7 @@ def find_name_day(name_query: str):
                 results.append({
                     "month": m,
                     "day": d,
-                    "code": f"{m:02d}-{d:02d}",
+                    "code": f"{d:02d}.{m:02d}",
                     "formatted": f"{d}. {m}.",
                     "names": n,
                 })
@@ -469,7 +469,7 @@ def find_name_day(name_query: str):
                         results.append({
                             "month": m,
                             "day": d,
-                            "code": f"{m:02d}-{d:02d}",
+                            "code": f"{d:02d}.{m:02d}",
                             "formatted": f"{d}. {m}.",
                             "names": n,
                         })

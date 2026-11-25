@@ -73,13 +73,21 @@ def format_name_day_filter(val):
     if not val:
         return "—"
     try:
-        m, d = val.split("-")
-        names = get_name_day_info(int(m), int(d))
+        s = str(val).strip()
+        if "." in s:
+            parts = s.split(".")
+            d, m = int(parts[0]), int(parts[1])
+        elif "-" in s:
+            parts = s.split("-")
+            m, d = int(parts[0]), int(parts[1])
+        else:
+            return str(val)
+        names = get_name_day_info(m, d)
         if names:
-            return f"{int(d)}. {int(m)}. ({names})"
-        return f"{int(d)}. {int(m)}."
+            return f"{d}. {m}. ({names})"
+        return f"{d}. {m}."
     except Exception:
-        return val
+        return str(val)
 
 
 @app.template_filter("format_date_cz")
@@ -117,8 +125,34 @@ def add_person():
         name_day = request.form.get("name_day", "").strip() or None
         about_info = request.form.get("about_info", "").strip()
 
-        if not email or not name:
-            flash("Jméno a e-mail jsou povinná pole.", "error")
+        if not email or not name or not date_of_birth or not first_day_job or not name_day:
+            flash("Všechny údaje (jméno, e-mail, datum narození, nástup do zaměstnání i datum svátku) jsou povinné. Pouze pole 'Něco o mně' je volitelné.", "error")
+            return render_template(
+                "add_person.html",
+                entra_user=entra_user,
+                entra_configured=is_entra_configured(),
+            )
+
+        # Validate and normalize name_day format (DD.MM)
+        clean_nd = str(name_day).strip()
+        valid_nd = False
+        if "." in clean_nd:
+            parts = clean_nd.split(".")
+            if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+                d_val, m_val = int(parts[0]), int(parts[1])
+                if 1 <= d_val <= 31 and 1 <= m_val <= 12:
+                    valid_nd = True
+                    name_day = f"{d_val:02d}.{m_val:02d}"
+        elif "-" in clean_nd:
+            parts = clean_nd.split("-")
+            if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+                m_val, d_val = int(parts[0]), int(parts[1])
+                if 1 <= d_val <= 31 and 1 <= m_val <= 12:
+                    valid_nd = True
+                    name_day = f"{d_val:02d}.{m_val:02d}"
+
+        if not valid_nd:
+            flash("Zadejte prosím platné datum svátku ve formátu DD.MM (např. 25.11 nebo 19.03).", "error")
             return render_template(
                 "add_person.html",
                 entra_user=entra_user,
@@ -264,7 +298,7 @@ def auth_demo_entra():
         "name": "Ing. Petr Novák",
         "date_of_birth": "1988-06-15",
         "first_day_job": "2020-09-01",
-        "name_day": "02-22",
+        "name_day": "22.02",
     }
     session["entra_user"] = sample
     session["user_email"] = sample["email"]
