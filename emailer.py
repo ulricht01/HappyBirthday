@@ -231,12 +231,45 @@ def _format_days_until_plain(days_until: int) -> str:
     return f"Za {days_until} dní"
 
 
+def _format_event_label(ev):
+    event_type = ev.get("event_type")
+    years_count = ev.get("years_count")
+    if event_type == "birthday":
+        return "🎂 Narozeniny"
+    elif event_type == "name_day":
+        return "💐 Svátek"
+    elif event_type == "job_anniversary":
+        if years_count and years_count > 0:
+            if years_count == 1:
+                return "🏢 1. pracovní výročí (1 rok na SPŠUL)"
+            elif years_count in (2, 3, 4):
+                return f"🏢 {years_count}. pracovní výročí ({years_count} roky na SPŠUL)"
+            else:
+                return f"🏢 {years_count}. pracovní výročí ({years_count} let na SPŠUL)"
+        return "🏢 Pracovní výročí"
+    return event_type or "Událost"
+
+
+def _format_event_label_plain(ev):
+    event_type = ev.get("event_type")
+    years_count = ev.get("years_count")
+    if event_type == "birthday":
+        return "narozeniny"
+    elif event_type == "name_day":
+        return "svátek"
+    elif event_type == "job_anniversary":
+        if years_count and years_count > 0:
+            if years_count == 1:
+                return "1. pracovní výročí (1 rok na SPŠUL)"
+            elif years_count in (2, 3, 4):
+                return f"{years_count}. pracovní výročí ({years_count} roky na SPŠUL)"
+            else:
+                return f"{years_count}. pracovní výročí ({years_count} let na SPŠUL)"
+        return "pracovní výročí"
+    return event_type or "událost"
+
+
 def _events_html_table(events):
-    event_labels_cs = {
-        "birthday": "🎂 Narozeniny",
-        "name_day": "💐 Svátek",
-        "job_anniversary": "🏢 Pracovní výročí",
-    }
     html = (
         "<table border='0' cellpadding='10' cellspacing='0' style='width:100%; border-collapse:collapse; "
         "font-family:Roboto,Helvetica,Arial,sans-serif; font-size:14px; margin-top:16px; margin-bottom:20px;'>"
@@ -250,7 +283,7 @@ def _events_html_table(events):
         "</tr>"
     )
     for i, ev in enumerate(events):
-        label = event_labels_cs.get(ev["event_type"], ev["event_type"])
+        label = _format_event_label(ev)
         event_date = ev["event_date"]
         if hasattr(event_date, "strftime"):
             date_str = event_date.strftime("%d. %m. %Y")
@@ -274,21 +307,26 @@ def send_event_notifications(recipient_email, recipient_name, events):
     if not events:
         return
 
-    event_labels_cs = {
-        "birthday": "narozeniny",
-        "name_day": "svátek",
-        "job_anniversary": "pracovní výročí",
-    }
-
     if len(events) == 1:
         ev = events[0]
-        label = event_labels_cs.get(ev["event_type"], ev["event_type"])
-        if ev["days_until"] == 0:
-            subject = f"🎉 Dnes má {label} {ev['person_name']}!"
-        elif ev["days_until"] == 1:
-            subject = f"🎉 Zítra má {label} {ev['person_name']}"
+        event_type = ev.get("event_type")
+        years_count = ev.get("years_count")
+
+        if event_type == "job_anniversary" and years_count and years_count > 0:
+            if ev["days_until"] == 0:
+                subject = f"🎉 Dnes slaví {ev['person_name']} své {years_count}. pracovní výročí na SPŠUL!"
+            elif ev["days_until"] == 1:
+                subject = f"🎉 Zítra slaví {ev['person_name']} své {years_count}. pracovní výročí na SPŠUL"
+            else:
+                subject = f"🎉 {ev['person_name']} slaví své {years_count}. pracovní výročí na SPŠUL ({_format_days_until_plain(ev['days_until']).lower()})"
         else:
-            subject = f"🎉 {ev['person_name']} má {label} {_format_days_until_plain(ev['days_until']).lower()}"
+            label = _format_event_label_plain(ev)
+            if ev["days_until"] == 0:
+                subject = f"🎉 Dnes má {label} {ev['person_name']}!"
+            elif ev["days_until"] == 1:
+                subject = f"🎉 Zítra má {label} {ev['person_name']}"
+            else:
+                subject = f"🎉 {ev['person_name']} má {label} {_format_days_until_plain(ev['days_until']).lower()}"
     else:
         if all(ev["days_until"] == 0 for ev in events):
             subject = f"🎉 Dnešní oslavenci na SPŠUL ({len(events)})"
@@ -337,7 +375,7 @@ def send_event_notifications(recipient_email, recipient_name, events):
         "",
     ]
     for ev in events:
-        label = event_labels_cs.get(ev["event_type"], ev["event_type"])
+        label = _format_event_label_plain(ev)
         event_date = ev["event_date"]
         if hasattr(event_date, "strftime"):
             date_str = event_date.strftime("%d. %m. %Y")

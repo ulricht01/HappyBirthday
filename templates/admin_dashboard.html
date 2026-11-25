@@ -50,7 +50,11 @@
                         <div><strong>E-mail:</strong> {{ person.email }}</div>
                         <div><strong>Narozeniny:</strong> {{ person.date_of_birth | format_date_cz }}</div>
                         <div><strong>Svátek:</strong> {{ person.name_day | format_name_day }}</div>
-                        <div><strong>Nástup:</strong> {{ person.first_day_job | format_date_cz }}</div>
+                        <div>
+                            <strong>Nástup:</strong> {{ person.first_day_job | format_date_cz }}
+                            {% set yj = person.first_day_job | format_years_job %}
+                            {% if yj %}<span style="color: var(--color-muted); font-size: 0.85rem;">({{ yj }})</span>{% endif %}
+                        </div>
                         {% if person.about_info %}
                         <div style="margin-top: 8px; padding: 8px 12px; background: var(--color-neutral-tint); border-radius: 6px; font-style: italic;">
                             "{{ person.about_info }}"
@@ -245,7 +249,15 @@
                         </td>
                         <td>{{ person.date_of_birth | format_date_cz }}</td>
                         <td>{{ person.name_day | format_name_day }}</td>
-                        <td>{{ person.first_day_job | format_date_cz }}</td>
+                        <td>
+                            {{ person.first_day_job | format_date_cz }}
+                            {% set yj = person.first_day_job | format_years_job %}
+                            {% if yj %}
+                            <div style="font-size: 0.8rem; color: var(--color-muted); margin-top: 2px;">
+                                {{ yj }}
+                            </div>
+                            {% endif %}
+                        </td>
                         <td style="text-align: right; white-space: nowrap;">
                             <div style="display: inline-flex; gap: 6px; align-items: center;">
                                 {% if person.status != 'approved' %}

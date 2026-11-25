@@ -145,6 +145,29 @@ def format_date_cz_filter(val):
         return str(val)
 
 
+@app.template_filter("format_years_job")
+def format_years_job_filter(val):
+    if not val:
+        return ""
+    try:
+        if isinstance(val, (datetime, date)):
+            d = val if isinstance(val, date) else val.date()
+        else:
+            d = date.fromisoformat(str(val).strip())
+        today = date.today()
+        years = today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+        if years <= 0:
+            return "1. rok na SPŠUL"
+        elif years == 1:
+            return "1 rok na SPŠUL"
+        elif years in (2, 3, 4):
+            return f"{years} roky na SPŠUL"
+        else:
+            return f"{years} let na SPŠUL"
+    except Exception:
+        return ""
+
+
 # ---------------------------------------------------------------------------
 # Public: add / update person
 # ---------------------------------------------------------------------------
@@ -638,7 +661,9 @@ def run_notification_dispatch(force=False, override_days_ahead=None, send_to_adm
 
     recipient_events = defaultdict(list)
     skipped_self = 0
-    for event_person, event_type, event_date, days_until in events:
+    for item in events:
+        event_person, event_type, event_date, days_until = item[0], item[1], item[2], item[3]
+        years_count = item[4] if len(item) > 4 else None
         for recipient in approved:
             if recipient["id"] == event_person["id"]:
                 skipped_self += 1
@@ -649,6 +674,7 @@ def run_notification_dispatch(force=False, override_days_ahead=None, send_to_adm
                 "event_type": event_type,
                 "event_date": event_date,
                 "days_until": days_until,
+                "years_count": years_count,
             })
 
     sent_events = 0
@@ -661,6 +687,7 @@ def run_notification_dispatch(force=False, override_days_ahead=None, send_to_adm
                 "event_type": it["event_type"],
                 "event_date": it["event_date"],
                 "days_until": it["days_until"],
+                "years_count": it.get("years_count"),
             }
             for it in items
         ]
@@ -682,6 +709,7 @@ def run_notification_dispatch(force=False, override_days_ahead=None, send_to_adm
                     "event_type": it[1],
                     "event_date": it[2],
                     "days_until": it[3],
+                    "years_count": it[4] if len(it) > 4 else None,
                 }
                 for it in events
             ]
@@ -697,9 +725,10 @@ def run_notification_dispatch(force=False, override_days_ahead=None, send_to_adm
             # When testing with 0 events in DB, send a sample mock email so admin can verify SMTP
             sample_event = [{
                 "person_name": "Ukázkový Kolega (Test)",
-                "event_type": "birthday",
+                "event_type": "job_anniversary",
                 "event_date": date.today(),
                 "days_until": 0,
+                "years_count": 5,
             }]
             send_event_notifications(
                 send_to_admin,

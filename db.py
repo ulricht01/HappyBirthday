@@ -446,7 +446,8 @@ def get_upcoming_events(days_ahead=30, include_birthdays=True, include_namedays=
                 if next_birthday < today:
                     next_birthday = date(today.year + 1, dob.month, dob.day)
                 if today <= next_birthday <= cutoff:
-                    events.append(("birthday", next_birthday, (next_birthday - today).days))
+                    age = next_birthday.year - dob.year
+                    events.append(("birthday", next_birthday, (next_birthday - today).days, age))
             except ValueError:
                 pass
         if include_namedays and p["name_day"]:
@@ -463,7 +464,7 @@ def get_upcoming_events(days_ahead=30, include_birthdays=True, include_namedays=
                     if nd < today:
                         nd = date(today.year + 1, int(month), int(day))
                     if today <= nd <= cutoff:
-                        events.append(("name_day", nd, (nd - today).days))
+                        events.append(("name_day", nd, (nd - today).days, None))
             except (ValueError, AttributeError):
                 pass
         if include_anniversaries and p["first_day_job"]:
@@ -473,11 +474,16 @@ def get_upcoming_events(days_ahead=30, include_birthdays=True, include_namedays=
                 if next_anniv < today:
                     next_anniv = date(today.year + 1, fdj.month, fdj.day)
                 if today <= next_anniv <= cutoff:
-                    events.append(("job_anniversary", next_anniv, (next_anniv - today).days))
+                    years_anniv = next_anniv.year - fdj.year
+                    events.append(("job_anniversary", next_anniv, (next_anniv - today).days, years_anniv))
             except ValueError:
                 pass
-        for event_type, event_date, days_until in events:
-            results.append((dict(p), event_type, event_date, days_until))
+        for ev in events:
+            event_type = ev[0]
+            event_date = ev[1]
+            days_until = ev[2]
+            years_count = ev[3] if len(ev) > 3 else None
+            results.append((dict(p), event_type, event_date, days_until, years_count))
     return results
 
 def create_admin_code(plain_code, expires_minutes=15):

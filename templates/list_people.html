@@ -54,7 +54,15 @@
                         </td>
                         <td>{{ person.date_of_birth | format_date_cz }}</td>
                         <td>{{ person.name_day | format_name_day }}</td>
-                        <td>{{ person.first_day_job | format_date_cz }}</td>
+                        <td>
+                            {{ person.first_day_job | format_date_cz }}
+                            {% set yj = person.first_day_job | format_years_job %}
+                            {% if yj %}
+                            <div style="font-size: 0.8rem; color: var(--color-muted); margin-top: 2px;">
+                                {{ yj }}
+                            </div>
+                            {% endif %}
+                        </td>
                         <td style="text-align: right;">
                             <form method="POST" action="/admin/delete/{{ person.id }}" style="display: inline;" onsubmit="return confirm('Opravdu si přejete trvale odstranit kolegu {{ person.name }}?');">
                                 <button type="submit" class="btn btn-secondary btn-sm" style="color: var(--color-chyba); border-color: rgba(186, 26, 26, 0.3); padding: 4px 10px; font-size: 0.8rem;">
