@@ -361,6 +361,15 @@ def reject_person(person_id):
     conn.close()
 
 
+def delete_person(person_id):
+    """Permanently delete a person from the database."""
+    conn = get_connection()
+    c = _dict_cursor(conn)
+    c.execute("DELETE FROM people WHERE id = %s", (person_id,))
+    conn.commit()
+    conn.close()
+
+
 def get_upcoming_events(days_ahead=30):
     today = date.today()
     cutoff = today + timedelta(days=days_ahead)

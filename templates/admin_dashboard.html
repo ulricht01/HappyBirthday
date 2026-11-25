@@ -99,7 +99,7 @@
                         <th>Narozeniny</th>
                         <th>Svátek</th>
                         <th>Nástup</th>
-                        <th>Akce</th>
+                        <th style="text-align: right;">Akce</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -123,16 +123,21 @@
                         <td>{{ person.date_of_birth | format_date_cz }}</td>
                         <td>{{ person.name_day | format_name_day }}</td>
                         <td>{{ person.first_day_job | format_date_cz }}</td>
-                        <td>
-                            {% if person.status != 'approved' %}
-                            <form method="POST" action="/admin/approve/{{ person.id }}" style="display: inline;">
-                                <button type="submit" class="btn btn-secondary btn-sm" style="padding: 3px 8px; min-height: 28px; font-size: 0.8rem;">
-                                    Schválit
-                                </button>
-                            </form>
-                            {% else %}
-                            <span style="font-size: 0.8rem; color: var(--color-muted);">Aktivní</span>
-                            {% endif %}
+                        <td style="text-align: right; white-space: nowrap;">
+                            <div style="display: inline-flex; gap: 6px; align-items: center;">
+                                {% if person.status != 'approved' %}
+                                <form method="POST" action="/admin/approve/{{ person.id }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-secondary btn-sm" style="padding: 3px 8px; min-height: 28px; font-size: 0.8rem;">
+                                        Schválit
+                                    </button>
+                                </form>
+                                {% endif %}
+                                <form method="POST" action="/admin/delete/{{ person.id }}" style="display: inline;" onsubmit="return confirm('Opravdu si přejete trvale odstranit kolegu {{ person.name }}?');">
+                                    <button type="submit" class="btn btn-secondary btn-sm" style="color: var(--color-chyba); border-color: rgba(186, 26, 26, 0.3); padding: 3px 8px; min-height: 28px; font-size: 0.8rem;">
+                                        🗑️ Odstranit
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}

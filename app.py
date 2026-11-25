@@ -12,6 +12,7 @@ from db import (
     add_or_update_person_entra,
     get_person_by_email,
     get_person_by_id,
+    delete_person,
     verify_code as verify_email_code,
     mark_verified,
     get_pending_approvals,
@@ -65,6 +66,19 @@ def _get_entra_redirect_uri():
     return uri.rstrip(".").rstrip("/")
 
 
+@app.before_request
+def enforce_profile_completion():
+    """
+    If a user logged in via Entra ID but lacks birth date or work start date,
+    force them to complete the form before they can navigate anywhere else.
+    """
+    if session.get("requires_completion"):
+        allowed = {"add_person", "api_name_day", "user_logout", "static"}
+        if request.endpoint and request.endpoint not in allowed:
+            flash("Pro dokončení přihlášení musíte nejprve vyplnit své datum narození a datum nástupu do zaměstnání.", "warning")
+            return redirect(url_for("add_person"))
+
+
 # ---------------------------------------------------------------------------
 # Template Filters for Czech Formats (SPŠUL Handbook Standard)
 # ---------------------------------------------------------------------------
@@ -110,11 +124,16 @@ def format_date_cz_filter(val):
 # ---------------------------------------------------------------------------
 @app.route("/")
 def index():
+    if session.get("admin_auth"):
+        return redirect(url_for("list_people"))
     return redirect(url_for("add_person"))
 
 
 @app.route("/add", methods=["GET", "POST"])
 def add_person():
+    if session.get("admin_auth"):
+        return redirect(url_for("list_people"))
+
     entra_user = session.get("entra_user", {})
 
     if request.method == "POST":
@@ -167,6 +186,7 @@ def add_person():
             session["entra_user"]["date_of_birth"] = date_of_birth or ""
             session["entra_user"]["first_day_job"] = first_day_job or ""
             session["entra_user"]["name_day"] = name_day or ""
+            session.pop("requires_completion", None)
             flash("Váš profil byl úspěšně uložen! Oznámení o narozeninách a svátcích kolegů vám budou chodit automaticky.", "success")
             return redirect(url_for("verify_success"))
 
@@ -253,38 +273,45 @@ def auth_callback():
             session["admin_auth"] = True
             session["user_email"] = email
             session["user_name"] = name
+            session.pop("requires_completion", None)
             flash(f"Vítejte v administraci, {name}!", "success")
             return redirect(url_for("admin_dashboard"))
 
         # Regular school employee logged in via Entra:
-        # Save directly as approved so they will automatically receive emails
-        add_or_update_person_entra(
-            email=email,
-            name=name,
-            date_of_birth=dob,
-            first_day_job=fdj,
-            name_day=code_nd,
-            about_info="",
-            status="approved",
-        )
+        existing_person = get_person_by_email(email)
+        effective_dob = dob or (existing_person["date_of_birth"] if existing_person else None)
+        effective_fdj = fdj or (existing_person["first_day_job"] if existing_person else None)
+        effective_nd = (existing_person["name_day"] if existing_person and existing_person["name_day"] else None) or code_nd
 
         session["entra_user"] = {
             "email": email,
             "name": name,
-            "date_of_birth": dob or "",
-            "first_day_job": fdj or "",
-            "name_day": code_nd or "",
+            "date_of_birth": effective_dob or "",
+            "first_day_job": effective_fdj or "",
+            "name_day": effective_nd or "",
         }
         session["user_email"] = email
         session["user_name"] = name
 
-        # If birth date is already filled, user is all set!
-        if dob:
-            flash(f"Vítejte, {name}! Váš profil je aktivní a e-mailová upozornění vám budou chodit.", "success")
-            return redirect(url_for("verify_success"))
+        # If birth date or hire date is missing in Entra, force user to complete both!
+        if not effective_dob or not effective_fdj:
+            session["requires_completion"] = True
+            flash(f"Vítejte, {name}! Váš školní účet Microsoft Entra ID nemá vyplněné datum narození a/nebo datum nástupu do zaměstnání. Doplňte prosím obě povinná pole níže pro dokončení aktivace.", "warning")
+            return redirect(url_for("add_person"))
 
-        flash(f"Vítejte, {name}! Jste úspěšně přihlášen(a). Zkontrolujte nebo doplňte své datum narození, abychom věděli, kdy vám popřát.", "info")
-        return redirect(url_for("add_person"))
+        # Both dates are present -> save directly as approved!
+        add_or_update_person_entra(
+            email=email,
+            name=name,
+            date_of_birth=effective_dob,
+            first_day_job=effective_fdj,
+            name_day=effective_nd,
+            about_info=existing_person["about_info"] if existing_person else "",
+            status="approved",
+        )
+        session.pop("requires_completion", None)
+        flash(f"Vítejte, {name}! Váš profil je aktivní a e-mailová upozornění vám budou chodit.", "success")
+        return redirect(url_for("verify_success"))
     except Exception as exc:
         flash(f"Chyba při zpracování účtu Microsoft Entra ID: {exc}", "error")
         return redirect(url_for("add_person"))
@@ -436,6 +463,19 @@ def admin_reject(person_id):
         reject_person(person_id)
         flash(f"{person['name']} byl(a) zamítnut(a).", "info")
     return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/delete/<int:person_id>", methods=["POST"])
+@admin_required
+def admin_delete(person_id):
+    person = get_person_by_id(person_id)
+    if person:
+        delete_person(person_id)
+        flash(f"{person['name']} byl(a) úspěšně trvale odstraněn(a) z databáze.", "success")
+    referrer = request.referrer or ""
+    if "dashboard" in referrer:
+        return redirect(url_for("admin_dashboard"))
+    return redirect(url_for("list_people"))
 
 
 @app.route("/admin/logout", methods=["GET"])

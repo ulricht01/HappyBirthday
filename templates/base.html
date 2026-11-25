@@ -19,9 +19,11 @@
                 </a>
 
                 <nav class="spsul-nav">
+                    {% if not session.admin_auth and not session.requires_completion %}
                     <a href="/add" class="spsul-nav-link {% if request.path == '/add' or request.path == '/' %}active{% endif %}">
                         Můj profil
                     </a>
+                    {% endif %}
 
                     {% if session.admin_auth %}
                     <a href="/people" class="spsul-nav-link {% if request.path == '/people' %}active{% endif %}">
@@ -34,6 +36,13 @@
                         Správce ({{ session.user_email or 'oslavnik@spsul.cz' }})
                     </span>
                     <a href="/admin/logout" class="spsul-nav-link" style="color: var(--color-chyba);">
+                        Odhlásit
+                    </a>
+                    {% elif session.requires_completion %}
+                    <span class="spsul-user-badge" style="background: var(--color-varovani-tint); color: var(--color-varovani);">
+                        Doplnění údajů ({{ session.user_name or session.user_email }})
+                    </span>
+                    <a href="/logout" class="spsul-nav-link" style="color: var(--color-muted);">
                         Odhlásit
                     </a>
                     {% elif session.user_email %}

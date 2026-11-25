@@ -11,12 +11,6 @@
                 Přehled všech evidovaných osob a jejich nadcházejících narozenin, svátků a pracovních výročí.
             </p>
         </div>
-
-        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-            <a href="/add" class="btn btn-primary">
-                + Přidat / upravit profil
-            </a>
-        </div>
     </div>
 
     {% if people %}
@@ -30,6 +24,7 @@
                         <th>Narozeniny</th>
                         <th>Svátek</th>
                         <th>Nástup do práce</th>
+                        <th style="text-align: right;">Akce</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -60,6 +55,13 @@
                         <td>{{ person.date_of_birth | format_date_cz }}</td>
                         <td>{{ person.name_day | format_name_day }}</td>
                         <td>{{ person.first_day_job | format_date_cz }}</td>
+                        <td style="text-align: right;">
+                            <form method="POST" action="/admin/delete/{{ person.id }}" style="display: inline;" onsubmit="return confirm('Opravdu si přejete trvale odstranit kolegu {{ person.name }}?');">
+                                <button type="submit" class="btn btn-secondary btn-sm" style="color: var(--color-chyba); border-color: rgba(186, 26, 26, 0.3); padding: 4px 10px; font-size: 0.8rem;">
+                                    🗑️ Odstranit
+                                </button>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

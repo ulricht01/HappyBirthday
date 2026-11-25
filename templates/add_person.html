@@ -4,6 +4,23 @@
 
 {% block content %}
 <div style="max-width: 720px; margin-inline: auto;">
+    {% if session.requires_completion %}
+    <div class="card" style="border-left: 4px solid var(--color-varovani); background: var(--color-varovani-tint); margin-bottom: 24px;">
+        <div style="display: flex; gap: 12px; align-items: flex-start;">
+            <div style="font-size: 1.5rem; line-height: 1;">⚠️</div>
+            <div>
+                <strong style="color: var(--color-varovani); font-size: 1.05rem; display: block; margin-bottom: 4px;">
+                    Nutné doplnění údajů pro aktivaci
+                </strong>
+                <p style="margin: 0; color: var(--color-ink); font-size: 0.95rem; line-height: 1.5;">
+                    Váš účet Microsoft Entra ID nemá vyplněné <strong>datum narození</strong> a/nebo <strong>datum nástupu do zaměstnání</strong>.
+                    Před pokračováním prosím doplňte obě pole níže a uložte formulář. Do té doby nelze v aplikaci pokračovat.
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <h1>Zadání a úprava údajů</h1>
     <p style="color: var(--color-muted); margin-bottom: 24px;">
         Zadejte své datum narození, nástupu do zaměstnání a svátek. Kolegové tak budou včas vědět o nadcházejících výročích a událostech.
@@ -24,7 +41,7 @@
                 </div>
                 {% if entra_user and entra_user.email %}
                 <p style="font-size: 0.9rem; color: var(--color-uspech); margin: 0;">
-                    ✓ Údaje načteny z účtu: <strong>{{ entra_user.email }}</strong> (ověřená identita)
+                    ✓ Přihlášený ověřený účet: <strong>{{ entra_user.email }}</strong>
                 </p>
                 {% else %}
                 <p style="font-size: 0.875rem; color: var(--color-muted); margin: 0;">
@@ -34,7 +51,11 @@
             </div>
 
             <div>
-                {% if entra_user and entra_user.email %}
+                {% if session.requires_completion %}
+                <a href="/logout" class="btn btn-secondary btn-sm" style="color: var(--color-muted);">
+                    Odhlásit
+                </a>
+                {% elif entra_user and entra_user.email %}
                 <a href="/auth/clear-entra" class="btn btn-secondary btn-sm">
                     Vymazat předvyplněné
                 </a>
@@ -76,6 +97,7 @@
                 <input type="email" id="email" name="email" class="input" required
                        placeholder="např. novotnak@spsul.cz"
                        value="{{ entra_user.email if entra_user else '' }}"
+                       {% if entra_user and entra_user.email %}readonly style="background: var(--color-surface); cursor: not-allowed;"{% endif %}
                        autocomplete="email">
                 <div class="help">
                     {% if entra_user and entra_user.email %}
@@ -127,7 +149,9 @@
 
             <div style="margin-top: 28px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
                 <button type="submit" class="btn btn-primary">
-                    {% if entra_user and entra_user.email %}
+                    {% if session.requires_completion %}
+                    Dokončit registraci a aktivovat profil &rarr;
+                    {% elif entra_user and entra_user.email %}
                     Uložit profil a potvrdit &rarr;
                     {% else %}
                     Pokračovat k ověření e-mailu &rarr;
