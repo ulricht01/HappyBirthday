@@ -157,7 +157,7 @@
                     Pokračovat k ověření e-mailu &rarr;
                     {% endif %}
                 </button>
-                {% if session.admin_auth %}
+                {% if is_admin %}
                 <a href="/people" class="btn btn-secondary">
                     Zpět na přehled oslavenců
                 </a>

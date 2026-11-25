@@ -79,6 +79,25 @@ def enforce_profile_completion():
             return redirect(url_for("add_person"))
 
 
+def is_admin_session() -> bool:
+    """
+    Returns True ONLY if session has explicit admin authorization
+    AND the authenticated user matches the owner email (oslavnik@spsul.cz).
+    """
+    if not session.get("admin_auth"):
+        return False
+    owner_email = os.getenv("OWNER_EMAIL", "oslavnik@spsul.cz").strip().lower()
+    user_email = session.get("user_email", "").strip().lower()
+    return bool(user_email and user_email == owner_email)
+
+
+@app.context_processor
+def inject_admin_context():
+    return {
+        "is_admin": is_admin_session(),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Template Filters for Czech Formats (SPŠUL Handbook Standard)
 # ---------------------------------------------------------------------------
@@ -124,14 +143,14 @@ def format_date_cz_filter(val):
 # ---------------------------------------------------------------------------
 @app.route("/")
 def index():
-    if session.get("admin_auth"):
+    if is_admin_session():
         return redirect(url_for("list_people"))
     return redirect(url_for("add_person"))
 
 
 @app.route("/add", methods=["GET", "POST"])
 def add_person():
-    if session.get("admin_auth"):
+    if is_admin_session():
         return redirect(url_for("list_people"))
 
     entra_user = session.get("entra_user", {})
@@ -238,6 +257,7 @@ def api_name_day():
 # ---------------------------------------------------------------------------
 @app.route("/auth/entra")
 def auth_entra():
+    session.pop("admin_auth", None)
     if not is_entra_configured():
         flash("Přihlášení přes Microsoft Entra ID není na serveru nakonfigurováno.", "warning")
         return redirect(url_for("add_person"))
@@ -269,13 +289,16 @@ def auth_callback():
 
         # Check if user is the admin (owner)
         owner_email = os.getenv("OWNER_EMAIL", "oslavnik@spsul.cz").strip().lower()
-        if email.lower() == owner_email:
+        if email.strip().lower() == owner_email:
             session["admin_auth"] = True
             session["user_email"] = email
             session["user_name"] = name
             session.pop("requires_completion", None)
             flash(f"Vítejte v administraci, {name}!", "success")
             return redirect(url_for("admin_dashboard"))
+
+        # For any non-owner user, explicitly strip admin privileges
+        session.pop("admin_auth", None)
 
         # Regular school employee logged in via Entra:
         existing_person = get_person_by_email(email)
@@ -341,6 +364,10 @@ def auth_demo_entra():
 @app.route("/auth/clear-entra")
 def auth_clear_entra():
     session.pop("entra_user", None)
+    session.pop("user_email", None)
+    session.pop("user_name", None)
+    session.pop("admin_auth", None)
+    session.pop("requires_completion", None)
     flash("Předvyplněné údaje byly vymazány.", "info")
     return redirect(url_for("add_person"))
 
@@ -383,7 +410,8 @@ def admin_required(f):
     from functools import wraps
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get("admin_auth"):
+        if not is_admin_session():
+            session.pop("admin_auth", None)
             flash("Tato sekce je přístupná pouze pro administrátora aplikace (oslavnik@spsul.cz).", "error")
             return redirect(url_for("admin_request"))
         return f(*args, **kwargs)
@@ -399,8 +427,9 @@ def user_logout():
 
 @app.route("/admin", methods=["GET"])
 def admin_request():
-    if session.get("admin_auth"):
+    if is_admin_session():
         return redirect(url_for("admin_dashboard"))
+    session.pop("admin_auth", None)
     return render_template(
         "admin_request.html",
         entra_configured=is_entra_configured(),
@@ -428,8 +457,9 @@ def admin_enter_code():
     if request.method == "POST":
         code = request.form.get("code", "").strip().upper()
         if verify_admin_code(code):
+            owner_email = os.getenv("OWNER_EMAIL", "oslavnik@spsul.cz").strip().lower()
             session["admin_auth"] = True
-            session["user_email"] = os.getenv("OWNER_EMAIL", "oslavnik@spsul.cz")
+            session["user_email"] = owner_email
             session["user_name"] = "Správce"
             flash("Přístup do administrace byl udělen.", "success")
             return redirect(url_for("admin_dashboard"))
@@ -480,7 +510,7 @@ def admin_delete(person_id):
 
 @app.route("/admin/logout", methods=["GET"])
 def admin_logout():
-    session.pop("admin_auth", None)
+    session.clear()
     flash("Byli jste odhlášeni z administrace.", "info")
     return redirect(url_for("add_person"))
 

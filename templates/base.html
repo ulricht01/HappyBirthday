@@ -19,13 +19,13 @@
                 </a>
 
                 <nav class="spsul-nav">
-                    {% if not session.admin_auth and not session.requires_completion %}
+                    {% if not is_admin and not session.requires_completion %}
                     <a href="/add" class="spsul-nav-link {% if request.path == '/add' or request.path == '/' %}active{% endif %}">
                         Můj profil
                     </a>
                     {% endif %}
 
-                    {% if session.admin_auth %}
+                    {% if is_admin %}
                     <a href="/people" class="spsul-nav-link {% if request.path == '/people' %}active{% endif %}">
                         Seznam oslavenců
                     </a>
@@ -87,7 +87,7 @@
                     <strong>Střední průmyslová škola Ústí nad Labem</strong> &bull; Interní systém pro připomínání narozenin, svátků a pracovních výročí
                 </div>
                 <div>
-                    {% if not session.admin_auth %}
+                    {% if not is_admin %}
                     <a href="/admin" style="color: var(--color-muted); font-size: 0.8rem; margin-right: 16px;">Správa (kód)</a>
                     {% endif %}
                     Podle standardů <a href="https://github.com/Jaqquca/spsul-handbook" target="_blank" rel="noopener">SPŠUL Handbook</a>
