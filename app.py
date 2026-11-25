@@ -38,12 +38,30 @@ from entra_auth import (
     build_authorization_url,
     exchange_code_for_user_info,
 )
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 init_db()
 verify_smtp_config()
+
+
+def _get_entra_redirect_uri():
+    """
+    Returns the redirect URI for Microsoft Entra ID callback.
+    Prefers explicit ENTRA_REDIRECT_URI from .env, or forces HTTPS for public domains behind reverse proxy.
+    """
+    env_redirect = os.getenv("ENTRA_REDIRECT_URI")
+    if env_redirect:
+        return env_redirect.strip()
+
+    uri = url_for("auth_callback", _external=True)
+    proto = request.headers.get("X-Forwarded-Proto", "").lower()
+    if proto == "https" or (not uri.startswith("http://localhost") and not uri.startswith("http://127.0.0.1")):
+        uri = uri.replace("http://", "https://", 1)
+    return uri
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +185,7 @@ def auth_entra():
     if not is_entra_configured():
         flash("Přihlášení přes Microsoft Entra ID není na serveru nakonfigurováno.", "warning")
         return redirect(url_for("add_person"))
-    redirect_uri = url_for("auth_callback", _external=True)
+    redirect_uri = _get_entra_redirect_uri()
     return redirect(build_authorization_url(redirect_uri))
 
 
@@ -183,7 +201,7 @@ def auth_callback():
         return redirect(url_for("add_person"))
 
     try:
-        redirect_uri = url_for("auth_callback", _external=True)
+        redirect_uri = _get_entra_redirect_uri()
         user_info = exchange_code_for_user_info(code, redirect_uri)
         email = user_info["email"]
         name = user_info["name"]
