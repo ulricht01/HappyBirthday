@@ -13,15 +13,27 @@ logger = logging.getLogger("entra_auth")
 
 
 def get_tenant_id() -> str:
-    return os.getenv("ENTRA_TENANT_ID", "").strip()
+    return (
+        os.getenv("ENTRA_TENANT_ID")
+        or os.getenv("AUTH_MICROSOFT_ENTRA_ID_TENANT_ID")
+        or ""
+    ).strip()
 
 
 def get_client_id() -> str:
-    return os.getenv("ENTRA_CLIENT_ID", "").strip()
+    return (
+        os.getenv("ENTRA_CLIENT_ID")
+        or os.getenv("AUTH_MICROSOFT_ENTRA_ID_ID")
+        or ""
+    ).strip()
 
 
 def get_client_secret() -> str:
-    return os.getenv("ENTRA_CLIENT_SECRET", "").strip()
+    return (
+        os.getenv("ENTRA_CLIENT_SECRET")
+        or os.getenv("AUTH_MICROSOFT_ENTRA_ID_SECRET")
+        or ""
+    ).strip()
 
 
 def is_entra_configured() -> bool:
