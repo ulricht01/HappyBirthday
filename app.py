@@ -746,20 +746,29 @@ def run_notification_dispatch(force=False, override_days_ahead=None, send_to_adm
             sent_events += len(admin_event_list)
         elif force:
             # When testing with 0 events in DB, send a sample mock email so admin can verify SMTP
-            sample_event = [{
-                "person_name": "Ukázkový Kolega (Test)",
-                "event_type": "job_anniversary",
-                "event_date": date.today(),
-                "days_until": 0,
-                "years_count": 5,
-            }]
+            sample_events = [
+                {
+                    "person_name": "Jan Novák (Ukázka)",
+                    "event_type": "birthday",
+                    "event_date": date.today(),
+                    "days_until": 0,
+                    "years_count": 40,
+                },
+                {
+                    "person_name": "Marie Svobodová (Ukázka)",
+                    "event_type": "job_anniversary",
+                    "event_date": date.today(),
+                    "days_until": 0,
+                    "years_count": 10,
+                },
+            ]
             send_event_notifications(
                 send_to_admin,
                 "Správce",
-                sample_event,
+                sample_events,
             )
             sent_recipients += 1
-            sent_events += 1
+            sent_events += len(sample_events)
 
     now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")

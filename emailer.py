@@ -334,12 +334,13 @@ def send_event_notifications(recipient_email, recipient_name, events):
             else:
                 subject = f"🎉 {ev['person_name']} slaví své {years_count}. pracovní výročí na SPŠUL ({_format_days_until_plain(ev['days_until']).lower()})"
         elif event_type == "birthday" and years_count and years_count > 0:
+            age_label = f"{years_count} rok" if years_count == 1 else (f"{years_count} roky" if 2 <= years_count <= 4 else f"{years_count} let")
             if ev["days_until"] == 0:
-                subject = f"🎉 Dnes slaví {ev['person_name']} své {years_count}. narozeniny!"
+                subject = f"🎉 Dnes slaví {ev['person_name']} své {years_count}. narozeniny ({age_label})!"
             elif ev["days_until"] == 1:
-                subject = f"🎉 Zítra slaví {ev['person_name']} své {years_count}. narozeniny"
+                subject = f"🎉 Zítra slaví {ev['person_name']} své {years_count}. narozeniny ({age_label})"
             else:
-                subject = f"🎉 {ev['person_name']} slaví své {years_count}. narozeniny ({_format_days_until_plain(ev['days_until']).lower()})"
+                subject = f"🎉 {ev['person_name']} slaví své {years_count}. narozeniny ({age_label}, {_format_days_until_plain(ev['days_until']).lower()})"
         else:
             label = _format_event_label_plain(ev)
             if ev["days_until"] == 0:
