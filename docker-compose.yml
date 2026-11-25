@@ -36,6 +36,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./templates:/app/templates:ro
+      - ./static:/app/static:ro
 
 volumes:
   postgres_data:

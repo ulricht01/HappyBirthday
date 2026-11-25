@@ -1,14 +1,35 @@
 {% extends "base.html" %}
 
-{% block content %}
-<h2>Verify Your Email</h2>
-<p>A 6-digit verification code was sent to <strong>{{ email }}</strong>. Please enter it below.</p>
-<p><small>Code expires in 24 hours.</small></p>
+{% block title %}Ověření e-mailu{% endblock %}
 
-<form method="POST" action="/verify">
-    <input type="hidden" name="email" value="{{ email }}">
-    <label for="code">Verification Code</label>
-    <input type="text" id="code" name="code" required maxlength="6" placeholder="123456" inputmode="numeric" pattern="[0-9]*">
-    <button type="submit">Verify &rarr;</button>
-</form>
+{% block content %}
+<div style="max-width: 520px; margin-inline: auto;">
+    <div class="card">
+        <h2>Ověření e-mailové adresy</h2>
+        <p style="color: var(--color-muted); margin-bottom: 20px;">
+            Na e-mailovou adresu <strong>{{ email }}</strong> jsme odeslali šestimístný ověřovací kód. Zadejte jej níže.
+        </p>
+
+        <form method="POST" action="/verify">
+            <input type="hidden" name="email" value="{{ email }}">
+
+            <div class="field">
+                <label for="code" class="label">Ověřovací kód (6 číslic) *</label>
+                <input type="text" id="code" name="code" class="input" required
+                       maxlength="6" placeholder="123456" inputmode="numeric"
+                       pattern="[0-9]*" style="letter-spacing: 0.25em; font-size: 1.25rem; font-weight: 600; text-align: center;">
+                <div class="help">Kód je platný 24 hodin od odeslání.</div>
+            </div>
+
+            <div style="margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">
+                    Ověřit kód &rarr;
+                </button>
+                <a href="/add" class="btn btn-secondary">
+                    Zpět na zadání údajů
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}

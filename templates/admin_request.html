@@ -1,13 +1,42 @@
 {% extends "base.html" %}
 
+{% block title %}Přihlášení do správy{% endblock %}
+
 {% block content %}
-<h2>Admin Access</h2>
-<p>Request a one-time admin code to review and approve pending people.</p>
-<p>The code will be sent to the owner's email address.</p>
+<div style="max-width: 520px; margin-inline: auto;">
+    <div class="card">
+        <h2>Přihlášení do administrace</h2>
+        <p style="color: var(--color-muted); margin-bottom: 24px;">
+            Přístup ke schvalování nových kolegů a správě databáze je vyhrazen správci systému.
+        </p>
 
-<form method="POST" action="/admin/request-code">
-    <button type="request-code">Request Admin Code</button>
-</form>
+        {% if entra_configured %}
+        <div style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--color-line); text-align: center;">
+            <p style="font-weight: 500; margin-bottom: 12px;">Rychlé přihlášení správce:</p>
+            <a href="/auth/entra" class="btn btn-entra" style="width: 100%;">
+                <div class="ms-logo-icon">
+                    <span class="ms-tile-red"></span>
+                    <span class="ms-tile-green"></span>
+                    <span class="ms-tile-blue"></span>
+                    <span class="ms-tile-yellow"></span>
+                </div>
+                Přihlásit se účtem Microsoft Entra ID
+            </a>
+        </div>
+        {% endif %}
 
-<p><small>After receiving the code by email, you'll be able to enter it on the next screen.</small></p>
+        <div>
+            <p style="font-weight: 500; margin-bottom: 8px;">Jednorázový kód správce:</p>
+            <p style="font-size: 0.875rem; color: var(--color-muted); margin-bottom: 16px;">
+                Po kliknutí na tlačítko níže bude na e-mail správce odeslán 8místný jednorázový bezpečnostní kód platný 15 minut.
+            </p>
+
+            <form method="POST" action="/admin/request-code">
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    🔑 Zaslat jednorázový kód správce
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

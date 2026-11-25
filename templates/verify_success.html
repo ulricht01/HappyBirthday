@@ -1,8 +1,24 @@
 {% extends "base.html" %}
 
+{% block title %}Profil uložen{% endblock %}
+
 {% block content %}
-<h2>Verification Complete</h2>
-<p>Your email has been verified. Your request has been sent to the owner for approval.</p>
-<p>You will be able to appear in notifications once approved.</p>
-<p><a href="/">Return to home</a></p>
+<div style="max-width: 560px; margin-inline: auto;">
+    <div class="card" style="text-align: center; padding: 40px 24px;">
+        <div style="font-size: 3rem; margin-bottom: 16px;">✅</div>
+        <h2>Váš profil byl úspěšně zaznamenán!</h2>
+        <p style="color: var(--color-muted); margin-bottom: 24px; font-size: 1.05rem;">
+            E-mail byl ověřen a váš profil byl předán správci aplikace ke schválení. Jakmile správce záznam schválí, budete zařazeni do rozesílání gratulací a oznámení.
+        </p>
+
+        <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
+            <a href="/people" class="btn btn-primary">
+                Přejít na seznam oslavenců &rarr;
+            </a>
+            <a href="/" class="btn btn-secondary">
+                Zpět na úvod
+            </a>
+        </div>
+    </div>
+</div>
 {% endblock %}

@@ -1,14 +1,33 @@
 {% extends "base.html" %}
 
+{% block title %}Zadání kódu správce{% endblock %}
+
 {% block content %}
-<h2>Enter Admin Code</h2>
-<p>Enter the one-time code sent to the owner's email.</p>
+<div style="max-width: 520px; margin-inline: auto;">
+    <div class="card">
+        <h2>Zadání jednorázového kódu</h2>
+        <p style="color: var(--color-muted); margin-bottom: 20px;">
+            Zadejte 8místný jednorázový kód, který byl zaslán na e-mailovou adresu správce.
+        </p>
 
-<form method="POST" action="/admin/enter-code">
-    <label for="code">Admin Code</label>
-    <input type="text" id="code" name="code" required maxlength="8" placeholder="ABCD1234">
-    <button type="submit">Enter Code</button>
-</form>
+        <form method="POST" action="/admin/enter-code">
+            <div class="field">
+                <label for="code" class="label">Kód správce *</label>
+                <input type="text" id="code" name="code" class="input" required
+                       maxlength="8" placeholder="ABCD1234"
+                       style="text-transform: uppercase; letter-spacing: 0.15em; font-size: 1.25rem; font-weight: 600; text-align: center;">
+                <div class="help">Kód je jednorázový a jeho platnost vyprší za 15 minut.</div>
+            </div>
 
-<p><a href="/admin">Back to request</a></p>
+            <div style="margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">
+                    Vstoupit do administrace &rarr;
+                </button>
+                <a href="/admin" class="btn btn-secondary">
+                    Zpět
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}

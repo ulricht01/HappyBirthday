@@ -1,41 +1,94 @@
 {% extends "base.html" %}
 
+{% block title %}Seznam oslavenců a událostí{% endblock %}
+
 {% block content %}
-<h2>People</h2>
+<div class="card">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
+        <div>
+            <h2>Seznam oslavenců a kolegů</h2>
+            <p style="color: var(--color-muted); margin: 0;">
+                Přehled všech evidovaných osob a jejich nadcházejících narozenin, svátků a pracovních výročí.
+            </p>
+        </div>
 
-{% if people %}
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Status</th>
-                <th>DOB</th>
-                <th>Name Day</th>
-                <th>First Day Job</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for person in people %}
-            <tr>
-                <td>{{ person.name }}</td>
-                <td>{{ person.email }}</td>
-                <td><span class="status-badge status-{{ person.status }}">{{ person.status }}</span></td>
-                <td>{{ person.date_of_birth or '—' }}</td>
-                <td>{{ person.name_day or '—' }}</td>
-                <td>{{ person.first_day_job or '—' }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <a href="/add" class="btn btn-primary">
+                + Přidat / upravit profil
+            </a>
+        </div>
+    </div>
 
-    <form method="POST" action="/send-notifications" style="margin-top: 24px;">
-        <button type="submit">Send Notifications for Upcoming Events (+30 days)</button>
-    </form>
-    <p><small>Emails will be sent to everyone except the person whose event is upcoming.</small></p>
-{% else %}
-    <p>No people in the database yet.</p>
-{% endif %}
+    {% if people %}
+        <div class="scroll-x">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Jméno</th>
+                        <th>Školní e-mail</th>
+                        <th>Stav</th>
+                        <th>Narozeniny</th>
+                        <th>Svátek</th>
+                        <th>Nástup do práce</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for person in people %}
+                    <tr>
+                        <td>
+                            <strong>{{ person.name }}</strong>
+                            {% if person.about_info %}
+                            <div style="font-size: 0.8rem; color: var(--color-muted); margin-top: 2px;">
+                                <em>{{ person.about_info }}</em>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>{{ person.email }}</td>
+                        <td>
+                            {% if person.status == 'approved' %}
+                                <span class="chip chip-uspech">Schváleno</span>
+                            {% elif person.status == 'pending_approval' %}
+                                <span class="chip chip-varovani">Čeká na schválení</span>
+                            {% elif person.status == 'pending_verification' %}
+                                <span class="chip chip-neutral">Čeká na ověření</span>
+                            {% elif person.status == 'rejected' %}
+                                <span class="chip chip-chyba">Zamítnuto</span>
+                            {% else %}
+                                <span class="chip chip-neutral">{{ person.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ person.date_of_birth | format_date_cz }}</td>
+                        <td>{{ person.name_day | format_name_day }}</td>
+                        <td>{{ person.first_day_job | format_date_cz }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
-<p><a href="/">Add a person</a></p>
+        <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--color-line); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+            <div>
+                <strong>Hromadné odeslání e-mailů:</strong>
+                <div style="font-size: 0.875rem; color: var(--color-muted);">
+                    Odešle všem schváleným kolegům souhrnný e-mail o nadcházejících událostech v příštích 30 dnech (vlastní události jsou vynechány).
+                </div>
+            </div>
+
+            <form method="POST" action="/send-notifications" onsubmit="return confirm('Opravdu si přejete odeslat e-mailová upozornění na blížící se události (+30 dní)?');">
+                <button type="submit" class="btn btn-secondary">
+                    ✉️ Odeslat upozornění na události (+30 dní)
+                </button>
+            </form>
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">🎉</div>
+            <div class="empty-state-title">V databázi zatím nejsou žádní kolegové</div>
+            <p>Buďte první a přidejte své údaje do systému.</p>
+            <a href="/add" class="btn btn-primary" style="margin-top: 12px;">
+                Přidat svůj profil
+            </a>
+        </div>
+    {% endif %}
+</div>
 {% endblock %}

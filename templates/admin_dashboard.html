@@ -1,67 +1,148 @@
 {% extends "base.html" %}
 
-{% block content %}
-<h2>Admin Dashboard</h2>
+{% block title %}Administrace — SPŠUL{% endblock %}
 
-<h3>Pending Approvals</h3>
-{% if pending %}
-    {% for person in pending %}
-    <div style="border: 1px solid #e5e7eb; padding: 16px; border-radius: 8px; margin-bottom: 16px; background: #fff;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-            <div>
-                <strong>{{ person.name }}</strong>
-                <span class="status-badge status-pending_approval">pending approval</span>
-                <div style="font-size: 0.85rem; color: #6b7280; margin-top: 4px;">
-                    {{ person.email }} &bull; {{ person.date_of_birth or '—' }} &bull; {{ person.name_day or '—' }} &bull; {{ person.first_day_job or '—' }}
-                </div>
-                {% if person.about_info %}
-                <div style="margin-top: 6px;"><em>{{ person.about_info }}</em></div>
-                {% endif %}
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;">
+    <div>
+        <h1>Správa aplikace</h1>
+        <p style="color: var(--color-muted); margin: 0;">
+            Schvalování nově přidaných profilů a kompletní přehled evidovaných kolegů.
+        </p>
+    </div>
+
+    <div>
+        <a href="/admin/logout" class="btn btn-secondary btn-sm" style="color: var(--color-chyba);">
+            Odhlásit se ze správy
+        </a>
+    </div>
+</div>
+
+<!-- Pending Approvals Section -->
+<div class="card">
+    <div class="card-header">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div class="card-title">
+                Čeká na schválení ({{ pending | length }})
             </div>
-            <div class="actions">
-                <form method="POST" action="/admin/approve/{{ person.id }}" style="display: inline; margin-right: 8px;">
-                    <button type="submit" onclick="return confirm('Approve {{ person.name }}?')">Approve</button>
-                </form>
-                <form method="POST" action="/admin/reject/{{ person.id }}" style="display: inline;">
-                    <button type="submit" class="secondary" onclick="return confirm('Reject {{ person.name }}?')">Reject</button>
-                </form>
-            </div>
+            {% if pending %}
+            <span class="chip chip-varovani">Vyžaduje pozornost</span>
+            {% else %}
+            <span class="chip chip-uspech">Vše schváleno</span>
+            {% endif %}
+        </div>
+        <div class="card-subtitle">
+            Kolegové, kteří ověřili svůj e-mail a čekají na vaše schválení do systému.
         </div>
     </div>
-    {% endfor %}
-{% else %}
-    <p>No pending approvals.</p>
-{% endif %}
 
-<h3>All People</h3>
-{% if all_people %}
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Status</th>
-                <th>DOB</th>
-                <th>Name Day</th>
-                <th>First Day Job</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for person in all_people %}
-            <tr>
-                <td>{{ person.name }}</td>
-                <td>{{ person.email }}</td>
-                <td><span class="status-badge status-{{ person.status }}">{{ person.status }}</span></td>
-                <td>{{ person.date_of_birth or '—' }}</td>
-                <td>{{ person.name_day or '—' }}</td>
-                <td>{{ person.first_day_job or '—' }}</td>
-            </tr>
+    {% if pending %}
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            {% for person in pending %}
+            <div style="border: 1px solid var(--color-line); border-radius: 8px; padding: 18px; background: #ffffff; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+                <div style="flex: 1; min-width: 260px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                        <strong style="font-size: 1.1rem; color: var(--color-ink);">{{ person.name }}</strong>
+                        <span class="chip chip-varovani">Čeká na schválení</span>
+                    </div>
+
+                    <div style="font-size: 0.9rem; color: var(--color-muted); line-height: 1.6;">
+                        <div><strong>E-mail:</strong> {{ person.email }}</div>
+                        <div><strong>Narozeniny:</strong> {{ person.date_of_birth | format_date_cz }}</div>
+                        <div><strong>Svátek:</strong> {{ person.name_day | format_name_day }}</div>
+                        <div><strong>Nástup:</strong> {{ person.first_day_job | format_date_cz }}</div>
+                        {% if person.about_info %}
+                        <div style="margin-top: 8px; padding: 8px 12px; background: var(--color-neutral-tint); border-radius: 6px; font-style: italic;">
+                            "{{ person.about_info }}"
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <form method="POST" action="/admin/approve/{{ person.id }}" onsubmit="return confirm('Opravdu schválit kolegu {{ person.name }}?');">
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            ✓ Schválit
+                        </button>
+                    </form>
+                    <form method="POST" action="/admin/reject/{{ person.id }}" onsubmit="return confirm('Opravdu zamítnout kolegu {{ person.name }}?');">
+                        <button type="submit" class="btn btn-secondary btn-sm" style="color: var(--color-chyba);">
+                            ✕ Zamítnout
+                        </button>
+                    </form>
+                </div>
+            </div>
             {% endfor %}
-        </tbody>
-    </table>
-{% else %}
-    <p>No people in the database.</p>
-{% endif %}
+        </div>
+    {% else %}
+        <div style="padding: 24px; text-align: center; color: var(--color-muted);">
+            Žádné žádosti nečekají na schválení.
+        </div>
+    {% endif %}
+</div>
 
-<p><a href="/admin/logout">Logout</a></p>
+<!-- All People Section -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Všichni evidovaní lidé ({{ all_people | length }})</div>
+        <div class="card-subtitle">Kompletní databáze uživatelů se stavem jejich účtu.</div>
+    </div>
+
+    {% if all_people %}
+        <div class="scroll-x">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Jméno</th>
+                        <th>Školní e-mail</th>
+                        <th>Stav</th>
+                        <th>Narozeniny</th>
+                        <th>Svátek</th>
+                        <th>Nástup</th>
+                        <th>Akce</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for person in all_people %}
+                    <tr>
+                        <td><strong>{{ person.name }}</strong></td>
+                        <td>{{ person.email }}</td>
+                        <td>
+                            {% if person.status == 'approved' %}
+                                <span class="chip chip-uspech">Schváleno</span>
+                            {% elif person.status == 'pending_approval' %}
+                                <span class="chip chip-varovani">Čeká na schválení</span>
+                            {% elif person.status == 'pending_verification' %}
+                                <span class="chip chip-neutral">Čeká na ověření</span>
+                            {% elif person.status == 'rejected' %}
+                                <span class="chip chip-chyba">Zamítnuto</span>
+                            {% else %}
+                                <span class="chip chip-neutral">{{ person.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ person.date_of_birth | format_date_cz }}</td>
+                        <td>{{ person.name_day | format_name_day }}</td>
+                        <td>{{ person.first_day_job | format_date_cz }}</td>
+                        <td>
+                            {% if person.status != 'approved' %}
+                            <form method="POST" action="/admin/approve/{{ person.id }}" style="display: inline;">
+                                <button type="submit" class="btn btn-secondary btn-sm" style="padding: 3px 8px; min-height: 28px; font-size: 0.8rem;">
+                                    Schválit
+                                </button>
+                            </form>
+                            {% else %}
+                            <span style="font-size: 0.8rem; color: var(--color-muted);">Aktivní</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div style="padding: 24px; text-align: center; color: var(--color-muted);">
+            V databázi zatím nejsou žádné záznamy.
+        </div>
+    {% endif %}
+</div>
 {% endblock %}

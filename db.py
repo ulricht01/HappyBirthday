@@ -2,9 +2,23 @@ import os
 import sqlite3
 from datetime import datetime, timedelta, date
 
-from dotenv import load_dotenv
+import czech_calendar
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip().strip("'\"")
+                    if k not in os.environ:
+                        os.environ[k] = v
 
 # Falls back to SQLite next to this file (/home/container/birthdays.db on Pterodactyl)
 _DEFAULT_SQLITE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "birthdays.db")
@@ -12,8 +26,13 @@ DB_URL = os.getenv("DATABASE_URL") or f"sqlite:///{_DEFAULT_SQLITE_PATH}"
 USE_SQLITE = DB_URL.startswith("sqlite")
 
 if not USE_SQLITE:
-    import psycopg2
-    import psycopg2.extras
+    try:
+        import psycopg2
+        import psycopg2.extras
+    except ImportError:
+        # Fallback to local SQLite if psycopg2 is not installed in current Python env
+        USE_SQLITE = True
+        DB_URL = f"sqlite:///{_DEFAULT_SQLITE_PATH}"
 
 
 def _sqlite_dict_row(cursor, row):
@@ -78,13 +97,76 @@ def init_db():
         "expires_at TEXT NOT NULL, "
         "created_at TEXT NOT NULL)"
     )
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS czech_name_days ("
+        "id SERIAL PRIMARY KEY, "
+        "month INTEGER NOT NULL, "
+        "day INTEGER NOT NULL, "
+        "names TEXT NOT NULL, "
+        "search_names TEXT NOT NULL)"
+    )
     conn.commit()
+
+    # Populate czech_name_days table if empty
+    c.execute("SELECT COUNT(*) AS cnt FROM czech_name_days")
+    row = c.fetchone()
+    count = row["cnt"] if row else 0
+    if count == 0:
+        for m, d, names in czech_calendar.CZECH_NAME_DAYS:
+            search_names = czech_calendar.remove_diacritics(names)
+            c.execute(
+                "INSERT INTO czech_name_days (month, day, names, search_names) "
+                "VALUES (%s, %s, %s, %s)",
+                (m, d, names, search_names),
+            )
+        conn.commit()
+
     conn.close()
+
+
+def get_name_day_for_first_name(name):
+    """
+    Returns (code 'MM-DD', formatted 'D. M.', names '...') for the person's first name,
+    or (None, None, None) if not found.
+    """
+    matches = czech_calendar.find_name_day(name)
+    if matches:
+        return matches[0]["code"], matches[0]["formatted"], matches[0]["names"]
+    return None, None, None
+
+
+def get_name_day_info(code_or_month, day=None):
+    """Returns official names for a date, e.g. code='03-19' or month=3, day=19."""
+    if day is None and isinstance(code_or_month, str) and "-" in code_or_month:
+        try:
+            m, d = code_or_month.split("-")
+            month, day = int(m), int(d)
+        except Exception:
+            return None
+    elif isinstance(code_or_month, int) and day is not None:
+        month = code_or_month
+    else:
+        return None
+
+    conn = get_connection()
+    c = _dict_cursor(conn)
+    c.execute("SELECT names FROM czech_name_days WHERE month = %s AND day = %s", (month, day))
+    row = c.fetchone()
+    conn.close()
+    return row["names"] if row else None
+
 
 def add_or_update_person(email, name, date_of_birth, first_day_job, name_day, about_info, verification_code, code_expires_at):
     conn = get_connection()
     c = _dict_cursor(conn)
     now = now_iso()
+
+    # Auto-detect Czech name day if not explicitly provided
+    if not name_day:
+        auto_code, _, _ = get_name_day_for_first_name(name)
+        if auto_code:
+            name_day = auto_code
+
     c.execute("SELECT id FROM people WHERE email = %s", (email,))
     existing = c.fetchone()
     if existing:
@@ -105,6 +187,49 @@ def add_or_update_person(email, name, date_of_birth, first_day_job, name_day, ab
             "RETURNING id",
             (email, name, date_of_birth, first_day_job, name_day, about_info,
              verification_code, code_expires_at, now, now),
+        )
+        person_id = c.fetchone()["id"]
+    conn.commit()
+    conn.close()
+    return person_id
+
+
+def add_or_update_person_entra(email, name, date_of_birth, first_day_job, name_day, about_info, status="pending_approval"):
+    """
+    Adds or updates a person verified via Microsoft Entra ID SSO.
+    Email verification is skipped as Entra accounts are pre-authenticated.
+    """
+    conn = get_connection()
+    c = _dict_cursor(conn)
+    now = now_iso()
+
+    # Auto-detect Czech name day if not explicitly provided
+    if not name_day:
+        auto_code, _, _ = get_name_day_for_first_name(name)
+        if auto_code:
+            name_day = auto_code
+
+    c.execute("SELECT id, status FROM people WHERE email = %s", (email,))
+    existing = c.fetchone()
+    if existing:
+        new_status = "approved" if existing["status"] == "approved" else status
+        c.execute(
+            "UPDATE people SET name = %s, date_of_birth = %s, first_day_job = %s, "
+            "name_day = %s, about_info = %s, status = %s, "
+            "verification_code = NULL, code_expires_at = NULL, updated_at = %s "
+            "WHERE email = %s",
+            (name, date_of_birth, first_day_job, name_day, about_info,
+             new_status, now, email),
+        )
+        person_id = existing["id"]
+    else:
+        c.execute(
+            "INSERT INTO people (email, name, date_of_birth, first_day_job, name_day, "
+            "about_info, status, verification_code, code_expires_at, created_at, updated_at) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, NULL, NULL, %s, %s) "
+            "RETURNING id",
+            (email, name, date_of_birth, first_day_job, name_day, about_info,
+             status, now, now),
         )
         person_id = c.fetchone()["id"]
     conn.commit()

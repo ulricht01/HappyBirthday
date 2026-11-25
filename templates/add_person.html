@@ -1,28 +1,200 @@
 {% extends "base.html" %}
 
+{% block title %}Nastavení údajů oslavence{% endblock %}
+
 {% block content %}
-<h2>Your Information</h2>
-<p>Fill in your details. You'll receive a verification code by email before your request is sent for approval.</p>
+<div style="max-width: 720px; margin-inline: auto;">
+    <h1>Zadání a úprava údajů</h1>
+    <p style="color: var(--color-muted); margin-bottom: 24px;">
+        Zadejte své datum narození, nástupu do zaměstnání a svátek. Kolegové tak budou včas vědět o nadcházejících výročích a událostech.
+    </p>
 
-<form method="POST" action="/add">
-    <label for="name">Name</label>
-    <input type="text" id="name" name="name" required placeholder="e.g. Alice Novak">
+    <!-- Microsoft Entra ID Card / Banner -->
+    <div class="card" style="border-left: 4px solid var(--color-accent); background: #ffffff;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <div class="ms-logo-icon">
+                        <span class="ms-tile-red"></span>
+                        <span class="ms-tile-green"></span>
+                        <span class="ms-tile-blue"></span>
+                        <span class="ms-tile-yellow"></span>
+                    </div>
+                    <strong style="color: var(--color-ink); font-size: 1.05rem;">Microsoft Entra ID (Školní účet)</strong>
+                </div>
+                {% if entra_user and entra_user.email %}
+                <p style="font-size: 0.9rem; color: var(--color-uspech); margin: 0;">
+                    ✓ Údaje načteny z účtu: <strong>{{ entra_user.email }}</strong> (ověřená identita)
+                </p>
+                {% else %}
+                <p style="font-size: 0.875rem; color: var(--color-muted); margin: 0;">
+                    Ušetřete si ruční vyplňování. Přihlášením přes školní účet se vaše jméno a e-mail načtou automaticky.
+                </p>
+                {% endif %}
+            </div>
 
-    <label for="email">Email</label>
-    <input type="email" id="email" name="email" required placeholder="e.g. alice@example.com">
+            <div>
+                {% if entra_user and entra_user.email %}
+                <a href="/auth/clear-entra" class="btn btn-secondary btn-sm">
+                    Vymazat předvyplněné
+                </a>
+                {% elif entra_configured %}
+                <a href="/auth/entra" class="btn btn-entra">
+                    <div class="ms-logo-icon">
+                        <span class="ms-tile-red"></span>
+                        <span class="ms-tile-green"></span>
+                        <span class="ms-tile-blue"></span>
+                        <span class="ms-tile-yellow"></span>
+                    </div>
+                    Přihlásit se přes Entra ID
+                </a>
+                {% else %}
+                <div style="display: flex; gap: 8px;">
+                    <a href="/auth/demo-entra" class="btn btn-secondary btn-sm" title="Předvyplní ukázkový školní účet pro otestování UX">
+                        ⚡ Předvyplnit z Entra (Demo)
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 
-    <label for="date_of_birth">Date of Birth</label>
-    <input type="date" id="date_of_birth" name="date_of_birth">
+    <!-- Main Form Card -->
+    <div class="card">
+        <form method="POST" action="/add" id="profile-form">
+            <div class="field">
+                <label for="name" class="label">Jméno a příjmení *</label>
+                <input type="text" id="name" name="name" class="input" required
+                       placeholder="např. Mgr. Kateřina Novotná"
+                       value="{{ entra_user.name if entra_user else '' }}"
+                       autocomplete="name">
+                <div class="help" id="name-detected-hint">Zadejte své jméno — systém z něj automaticky vyhledá váš svátek v českém kalendáři.</div>
+            </div>
 
-    <label for="first_day_job">First Day in Job</label>
-    <input type="date" id="first_day_job" name="first_day_job">
+            <div class="field">
+                <label for="email" class="label">Školní e-mail (@spsul.cz) *</label>
+                <input type="email" id="email" name="email" class="input" required
+                       placeholder="např. novotnak@spsul.cz"
+                       value="{{ entra_user.email if entra_user else '' }}"
+                       autocomplete="email">
+                <div class="help">
+                    {% if entra_user and entra_user.email %}
+                    <span style="color: var(--color-uspech); font-weight: 500;">✓ E-mail je již ověřen přihlášením přes Microsoft Entra ID.</span>
+                    {% else %}
+                    Na tento e-mail vám zašleme jednorázový 6místný ověřovací kód pro potvrzení.
+                    {% endif %}
+                </div>
+            </div>
 
-    <label for="name_day">Name Day (MM-DD)</label>
-    <input type="text" id="name_day" name="name_day" placeholder="e.g. 06-24" maxlength="5">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+                <div class="field">
+                    <label for="date_of_birth" class="label">Datum narození</label>
+                    <input type="date" id="date_of_birth" name="date_of_birth" class="input"
+                           value="{{ entra_user.date_of_birth if entra_user else '' }}">
+                    <div class="help">Pro gratulaci k narozeninám.</div>
+                </div>
 
-    <label for="about_info">About Yourself</label>
-    <textarea id="about_info" name="about_info" placeholder="A few words about you..."></textarea>
+                <div class="field">
+                    <label for="first_day_job" class="label">Nástup do zaměstnání (SPŠUL)</label>
+                    <input type="date" id="first_day_job" name="first_day_job" class="input"
+                           value="{{ entra_user.first_day_job if entra_user else '' }}">
+                    <div class="help">Pro připomínání pracovního výročí.</div>
+                </div>
+            </div>
 
-    <button type="submit">Submit &rarr; receive verification code</button>
-</form>
+            <div class="field">
+                <label for="name_day" class="label">Datum svátku (MM-DD)</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="name_day" name="name_day" class="input"
+                           style="max-width: 140px;"
+                           placeholder="např. 11-25"
+                           maxlength="5"
+                           value="{{ entra_user.name_day if entra_user else '' }}">
+                    <span id="name-day-label" style="font-size: 0.95rem; font-weight: 500; color: var(--color-accent-text);"></span>
+                </div>
+                <div class="help" id="name-day-help">
+                    Vyplní se automaticky podle vašeho křestního jména, nebo můžete datum upravit (formát MM-DD, např. <code>03-19</code> pro Josefa).
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="about_info" class="label">Něco o mně (volitelné)</label>
+                <textarea id="about_info" name="about_info" class="textarea"
+                          placeholder="Např. oblíbená káva, koníčky nebo jakou máte rádi čokoládu k narozeninám..."></textarea>
+                <div class="help">Zobrazí se správci a v interních přehledech.</div>
+            </div>
+
+            <div style="margin-top: 28px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                <button type="submit" class="btn btn-primary">
+                    {% if entra_user and entra_user.email %}
+                    Uložit profil a odeslat ke schválení &rarr;
+                    {% else %}
+                    Pokračovat k ověření e-mailu &rarr;
+                    {% endif %}
+                </button>
+                <a href="/people" class="btn btn-secondary">
+                    Zpět na přehled
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const nameInput = document.getElementById("name");
+    const nameDayInput = document.getElementById("name_day");
+    const nameDayLabel = document.getElementById("name-day-label");
+    const nameDetectedHint = document.getElementById("name-detected-hint");
+
+    let timer = null;
+
+    function checkNameDay(nameVal) {
+        if (!nameVal || nameVal.trim().length < 2) {
+            nameDayLabel.textContent = "";
+            return;
+        }
+
+        fetch("/api/name-day?name=" + encodeURIComponent(nameVal.trim()))
+            .then(res => res.json())
+            .then(data => {
+                if (data.found) {
+                    nameDayInput.value = data.code;
+                    nameDayLabel.textContent = "🎉 " + data.formatted + " (" + data.names + ")";
+                    nameDetectedHint.innerHTML = "✓ Detekován svátek: <strong>" + data.formatted + " (" + data.names + ")</strong>";
+                    nameDetectedHint.style.color = "var(--color-uspech)";
+                } else {
+                    nameDayLabel.textContent = "";
+                    nameDetectedHint.textContent = "Zadejte své jméno — systém z něj automaticky vyhledá váš svátek v českém kalendáři.";
+                    nameDetectedHint.style.color = "var(--color-muted)";
+                }
+            })
+            .catch(() => {});
+    }
+
+    nameInput.addEventListener("input", function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+            checkNameDay(nameInput.value);
+        }, 300);
+    });
+
+    // Check on initial load if name already has value (e.g. from Entra)
+    if (nameInput.value && !nameDayInput.value) {
+        checkNameDay(nameInput.value);
+    } else if (nameDayInput.value) {
+        // Look up formatted name for existing code
+        fetch("/api/name-day?name=" + encodeURIComponent(nameInput.value || ""))
+            .then(res => res.json())
+            .then(data => {
+                if (data.found && data.code === nameDayInput.value) {
+                    nameDayLabel.textContent = "🎉 " + data.formatted + " (" + data.names + ")";
+                }
+            })
+            .catch(() => {});
+    }
+});
+</script>
 {% endblock %}
