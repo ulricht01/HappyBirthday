@@ -52,7 +52,15 @@
                                 <span class="chip chip-neutral">{{ person.status }}</span>
                             {% endif %}
                         </td>
-                        <td>{{ person.date_of_birth | format_date_cz }}</td>
+                        <td>
+                            {{ person.date_of_birth | format_date_cz }}
+                            {% set age = person.date_of_birth | format_age %}
+                            {% if age %}
+                            <div style="font-size: 0.8rem; color: var(--color-muted); margin-top: 2px;">
+                                {{ age }}
+                            </div>
+                            {% endif %}
+                        </td>
                         <td>{{ person.name_day | format_name_day }}</td>
                         <td>
                             {{ person.first_day_job | format_date_cz }}

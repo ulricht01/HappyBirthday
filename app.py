@@ -168,6 +168,29 @@ def format_years_job_filter(val):
         return ""
 
 
+@app.template_filter("format_age")
+def format_age_filter(val):
+    if not val:
+        return ""
+    try:
+        if isinstance(val, (datetime, date)):
+            d = val if isinstance(val, date) else val.date()
+        else:
+            d = date.fromisoformat(str(val).strip())
+        today = date.today()
+        age = today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+        if age <= 0:
+            return ""
+        elif age == 1 or (age > 20 and age % 10 == 1):
+            return f"{age} rok"
+        elif age in (2, 3, 4) or (age > 20 and age % 10 in (2, 3, 4)):
+            return f"{age} roky"
+        else:
+            return f"{age} let"
+    except Exception:
+        return ""
+
+
 # ---------------------------------------------------------------------------
 # Public: add / update person
 # ---------------------------------------------------------------------------

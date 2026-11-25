@@ -48,7 +48,11 @@
 
                     <div style="font-size: 0.9rem; color: var(--color-muted); line-height: 1.6;">
                         <div><strong>E-mail:</strong> {{ person.email }}</div>
-                        <div><strong>Narozeniny:</strong> {{ person.date_of_birth | format_date_cz }}</div>
+                        <div>
+                            <strong>Narozeniny:</strong> {{ person.date_of_birth | format_date_cz }}
+                            {% set age = person.date_of_birth | format_age %}
+                            {% if age %}<span style="color: var(--color-muted); font-size: 0.85rem;">({{ age }})</span>{% endif %}
+                        </div>
                         <div><strong>Svátek:</strong> {{ person.name_day | format_name_day }}</div>
                         <div>
                             <strong>Nástup:</strong> {{ person.first_day_job | format_date_cz }}
@@ -247,7 +251,15 @@
                                 <span class="chip chip-neutral">{{ person.status }}</span>
                             {% endif %}
                         </td>
-                        <td>{{ person.date_of_birth | format_date_cz }}</td>
+                        <td>
+                            {{ person.date_of_birth | format_date_cz }}
+                            {% set age = person.date_of_birth | format_age %}
+                            {% if age %}
+                            <div style="font-size: 0.8rem; color: var(--color-muted); margin-top: 2px;">
+                                {{ age }}
+                            </div>
+                            {% endif %}
+                        </td>
                         <td>{{ person.name_day | format_name_day }}</td>
                         <td>
                             {{ person.first_day_job | format_date_cz }}

@@ -235,6 +235,13 @@ def _format_event_label(ev):
     event_type = ev.get("event_type")
     years_count = ev.get("years_count")
     if event_type == "birthday":
+        if years_count and years_count > 0:
+            if years_count == 1:
+                return "🎂 1. narozeniny (1 rok)"
+            elif years_count in (2, 3, 4):
+                return f"🎂 {years_count}. narozeniny ({years_count} roky)"
+            else:
+                return f"🎂 {years_count}. narozeniny ({years_count} let)"
         return "🎂 Narozeniny"
     elif event_type == "name_day":
         return "💐 Svátek"
@@ -254,6 +261,13 @@ def _format_event_label_plain(ev):
     event_type = ev.get("event_type")
     years_count = ev.get("years_count")
     if event_type == "birthday":
+        if years_count and years_count > 0:
+            if years_count == 1:
+                return "1. narozeniny (1 rok)"
+            elif years_count in (2, 3, 4):
+                return f"{years_count}. narozeniny ({years_count} roky)"
+            else:
+                return f"{years_count}. narozeniny ({years_count} let)"
         return "narozeniny"
     elif event_type == "name_day":
         return "svátek"
@@ -319,6 +333,13 @@ def send_event_notifications(recipient_email, recipient_name, events):
                 subject = f"🎉 Zítra slaví {ev['person_name']} své {years_count}. pracovní výročí na SPŠUL"
             else:
                 subject = f"🎉 {ev['person_name']} slaví své {years_count}. pracovní výročí na SPŠUL ({_format_days_until_plain(ev['days_until']).lower()})"
+        elif event_type == "birthday" and years_count and years_count > 0:
+            if ev["days_until"] == 0:
+                subject = f"🎉 Dnes slaví {ev['person_name']} své {years_count}. narozeniny!"
+            elif ev["days_until"] == 1:
+                subject = f"🎉 Zítra slaví {ev['person_name']} své {years_count}. narozeniny"
+            else:
+                subject = f"🎉 {ev['person_name']} slaví své {years_count}. narozeniny ({_format_days_until_plain(ev['days_until']).lower()})"
         else:
             label = _format_event_label_plain(ev)
             if ev["days_until"] == 0:
