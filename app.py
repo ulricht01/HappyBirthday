@@ -498,6 +498,7 @@ def admin_save_notification_settings():
     notify_birthdays = "1" if request.form.get("notify_birthdays") else "0"
     notify_namedays = "1" if request.form.get("notify_namedays") else "0"
     notify_anniversaries = "1" if request.form.get("notify_anniversaries") else "0"
+    notify_on_event_day = "1" if request.form.get("notify_on_event_day") else "0"
 
     update_settings({
         "auto_send_enabled": auto_send_enabled,
@@ -507,6 +508,7 @@ def admin_save_notification_settings():
         "notify_birthdays": notify_birthdays,
         "notify_namedays": notify_namedays,
         "notify_anniversaries": notify_anniversaries,
+        "notify_on_event_day": notify_on_event_day,
     })
     flash("Nastavení automatického odesílání e-mailů bylo úspěšně uloženo.", "success")
     return redirect(url_for("admin_dashboard"))
@@ -515,9 +517,10 @@ def admin_save_notification_settings():
 @app.route("/admin/settings/test-send", methods=["POST"])
 @admin_required
 def admin_test_send():
-    success, msg, count = run_notification_dispatch(force=True)
+    admin_email = session.get("user_email") or os.getenv("OWNER_EMAIL", "oslavnik@spsul.cz")
+    success, msg, count = run_notification_dispatch(force=True, send_to_admin=admin_email)
     if success:
-        flash(f"Testovací běh dokončen: {msg}", "success")
+        flash(f"Zkušební odeslání: {msg}", "success")
     else:
         flash(f"Odeslání se nezdařilo: {msg}", "error")
     return redirect(url_for("admin_dashboard"))
@@ -591,7 +594,7 @@ def is_scheduled_day(frequency: str, now: datetime) -> bool:
     return True
 
 
-def run_notification_dispatch(force=False):
+def run_notification_dispatch(force=False, override_days_ahead=None, send_to_admin=None):
     """
     Executes event notification dispatch based on configured app settings.
     If force=False, respects auto_send_enabled and checks if already run today.
@@ -602,22 +605,24 @@ def run_notification_dispatch(force=False):
     if not auto_enabled and not force:
         return False, "Automatické odesílání je v nastavení vypnuto.", 0
 
-    raw_days_ahead = str(settings.get("days_ahead", "auto")).strip()
     frequency = settings.get("send_frequency", "daily").strip()
-    now = datetime.now()
 
-    if raw_days_ahead == "auto":
-        if frequency == "monthly" or (frequency == "weekly_and_monthly" and now.day == 1):
-            days_ahead = 31
-        elif frequency == "weekly" or (frequency == "weekly_and_monthly" and now.weekday() == 0):
-            days_ahead = 7
-        else:
-            days_ahead = 0
+    if override_days_ahead is not None:
+        days_ahead = int(override_days_ahead)
     else:
-        try:
-            days_ahead = int(raw_days_ahead)
-        except ValueError:
-            days_ahead = 0
+        raw_days_ahead = str(settings.get("days_ahead", "auto")).strip()
+        if raw_days_ahead == "auto":
+            if frequency in ("monthly", "weekly_and_monthly"):
+                days_ahead = 31
+            elif frequency == "weekly":
+                days_ahead = 7
+            else:
+                days_ahead = 0
+        else:
+            try:
+                days_ahead = int(raw_days_ahead)
+            except ValueError:
+                days_ahead = 0
 
     include_birthdays = settings.get("notify_birthdays") == "1"
     include_namedays = settings.get("notify_namedays") == "1"
@@ -668,13 +673,50 @@ def run_notification_dispatch(force=False):
         sent_recipients += 1
         sent_events += len(event_list)
 
+    # If send_to_admin is set (from test send button), ensure admin gets a preview copy
+    if send_to_admin:
+        if events:
+            admin_event_list = [
+                {
+                    "person_name": it[0]["name"],
+                    "event_type": it[1],
+                    "event_date": it[2],
+                    "days_until": it[3],
+                }
+                for it in events
+            ]
+            admin_event_list.sort(key=lambda ev: (ev["days_until"], ev["person_name"]))
+            send_event_notifications(
+                send_to_admin,
+                "Správce",
+                admin_event_list,
+            )
+            sent_recipients += 1
+            sent_events += len(admin_event_list)
+        elif force:
+            # When testing with 0 events in DB, send a sample mock email so admin can verify SMTP
+            sample_event = [{
+                "person_name": "Ukázkový Kolega (Test)",
+                "event_type": "birthday",
+                "event_date": date.today(),
+                "days_until": 0,
+            }]
+            send_event_notifications(
+                send_to_admin,
+                "Správce",
+                sample_event,
+            )
+            sent_recipients += 1
+            sent_events += 1
+
+    now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
     time_str = now.strftime("%d. %m. %Y v %H:%M")
 
     if sent_events > 0:
-        status_msg = f"Odesláno {sent_events} oznámení pro {sent_recipients} kolegů ({time_str})"
+        status_msg = f"Odesláno {sent_events} oznámení pro {sent_recipients} příjemců (horizont: {days_ahead} dní, {time_str})"
     else:
-        status_msg = f"Žádné blížící se události nenalezeny ({time_str})"
+        status_msg = f"Žádné události v horizontu {days_ahead} dní nenalezeny ({time_str})"
 
     set_setting("last_run_date", today_str)
     set_setting("last_run_time", time_str)
@@ -695,6 +737,7 @@ def background_notification_scheduler():
     """
     Background daemon running in the Flask process.
     Checks periodically if it is time to dispatch notifications based on frequency and time.
+    Also handles day-of-event notifications (notify_on_event_day).
     """
     time.sleep(5)
     while True:
@@ -703,15 +746,33 @@ def background_notification_scheduler():
             if settings.get("auto_send_enabled") == "1":
                 frequency = settings.get("send_frequency", "daily").strip()
                 send_time = settings.get("send_time", "08:00").strip()
+                notify_on_event_day = settings.get("notify_on_event_day", "1") == "1"
                 last_run_date = settings.get("last_run_date", "").strip()
                 now = datetime.now()
                 today_str = now.strftime("%Y-%m-%d")
                 current_time_str = now.strftime("%H:%M")
 
                 if last_run_date != today_str and current_time_str >= send_time:
-                    if is_scheduled_day(frequency, now):
-                        logging.info(f"Spouštím automatické {frequency} rozesílání oznámení ({current_time_str})...")
+                    is_main_run = is_scheduled_day(frequency, now)
+                    if is_main_run:
+                        logging.info(f"Spouštím hlavní {frequency} rozesílání oznámení ({current_time_str})...")
                         run_notification_dispatch(force=False)
+                    elif notify_on_event_day:
+                        # Check if anyone has an event TODAY (days_ahead = 0)
+                        today_events = get_upcoming_events(
+                            days_ahead=0,
+                            include_birthdays=settings.get("notify_birthdays") == "1",
+                            include_namedays=settings.get("notify_namedays") == "1",
+                            include_anniversaries=settings.get("notify_anniversaries") == "1",
+                        )
+                        if today_events:
+                            logging.info(f"Nalezeni dnešní oslavenci ({len(today_events)}). Spouštím ranní upozornění v den události...")
+                            run_notification_dispatch(force=True, override_days_ahead=0)
+                        else:
+                            # No events today -> mark today as checked
+                            set_setting("last_run_date", today_str)
+                            set_setting("last_run_time", now.strftime("%d. %m. %Y v %H:%M"))
+                            set_setting("last_run_status", f"Žádní dnešní oslavenci ({now.strftime('%d. %m. %Y v %H:%M')})")
         except Exception as exc:
             logging.error(f"Chyba v plánovači automatického rozesílání: {exc}")
         time.sleep(30)

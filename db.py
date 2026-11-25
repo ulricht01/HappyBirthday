@@ -384,6 +384,7 @@ DEFAULT_SETTINGS = {
     "notify_birthdays": "1",
     "notify_namedays": "1",
     "notify_anniversaries": "1",
+    "notify_on_event_day": "1",
     "last_run_date": "",
     "last_run_time": "",
     "last_run_status": "Zatím nespuštěno",

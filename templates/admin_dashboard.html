@@ -184,6 +184,16 @@
                     <span>🏢 Pracovní výročí</span>
                 </label>
             </div>
+
+            <div style="margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--color-line);">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500;">
+                    <input type="checkbox" name="notify_on_event_day" value="1" {% if settings.notify_on_event_day == '1' or settings.notify_on_event_day is none %}checked{% endif %} style="width: 18px; height: 18px; accent-color: var(--color-accent);">
+                    <span>🔔 Upozornit také vždy přímo v den události (ranní gratulace / upozornění)</span>
+                </label>
+                <div class="help" style="margin-left: 28px;">
+                    Doporučeno. I při nastavení týdenního nebo měsíčního souhrnu pošle systém ranní e-mail v den, kdy někdo z kolegů slaví, aby mu ostatní nezapomněli popřát.
+                </div>
+            </div>
         </div>
 
         <div>
