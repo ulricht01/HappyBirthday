@@ -1,6 +1,9 @@
 import os
 import secrets
 import string
+import threading
+import time
+import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, date
 
@@ -25,6 +28,10 @@ from db import (
     verify_admin_code,
     get_name_day_for_first_name,
     get_name_day_info,
+    get_all_settings,
+    get_setting,
+    set_setting,
+    update_settings,
 )
 from emailer import (
     send_verification_code,
@@ -472,7 +479,46 @@ def admin_enter_code():
 def admin_dashboard():
     pending = get_pending_approvals()
     all_people = get_all_people()
-    return render_template("admin_dashboard.html", pending=pending, all_people=all_people)
+    settings = get_all_settings()
+    return render_template(
+        "admin_dashboard.html",
+        pending=pending,
+        all_people=all_people,
+        settings=settings,
+    )
+
+
+@app.route("/admin/settings/notifications", methods=["POST"])
+@admin_required
+def admin_save_notification_settings():
+    auto_send_enabled = "1" if request.form.get("auto_send_enabled") else "0"
+    send_time = request.form.get("send_time", "08:00").strip()
+    days_ahead = request.form.get("days_ahead", "0").strip()
+    notify_birthdays = "1" if request.form.get("notify_birthdays") else "0"
+    notify_namedays = "1" if request.form.get("notify_namedays") else "0"
+    notify_anniversaries = "1" if request.form.get("notify_anniversaries") else "0"
+
+    update_settings({
+        "auto_send_enabled": auto_send_enabled,
+        "send_time": send_time,
+        "days_ahead": days_ahead,
+        "notify_birthdays": notify_birthdays,
+        "notify_namedays": notify_namedays,
+        "notify_anniversaries": notify_anniversaries,
+    })
+    flash("Nastavení automatického odesílání e-mailů bylo úspěšně uloženo.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/settings/test-send", methods=["POST"])
+@admin_required
+def admin_test_send():
+    success, msg, count = run_notification_dispatch(force=True)
+    if success:
+        flash(f"Testovací běh dokončen: {msg}", "success")
+    else:
+        flash(f"Odeslání se nezdařilo: {msg}", "error")
+    return redirect(url_for("admin_dashboard"))
 
 
 @app.route("/admin/approve/<int:person_id>", methods=["POST"])
@@ -525,15 +571,36 @@ def list_people():
     return render_template("list_people.html", people=people)
 
 
-@app.route("/send-notifications", methods=["POST"])
-@admin_required
-def send_notifications():
-    events = get_upcoming_events(days_ahead=30)
+def run_notification_dispatch(force=False):
+    """
+    Executes event notification dispatch based on configured app settings.
+    If force=False, respects auto_send_enabled and checks if already run today.
+    Returns (success: bool, message: str, sent_count: int).
+    """
+    settings = get_all_settings()
+    auto_enabled = settings.get("auto_send_enabled") == "1"
+    if not auto_enabled and not force:
+        return False, "Automatické odesílání je v nastavení vypnuto.", 0
+
+    try:
+        days_ahead = int(settings.get("days_ahead", "0"))
+    except ValueError:
+        days_ahead = 0
+
+    include_birthdays = settings.get("notify_birthdays") == "1"
+    include_namedays = settings.get("notify_namedays") == "1"
+    include_anniversaries = settings.get("notify_anniversaries") == "1"
+
+    events = get_upcoming_events(
+        days_ahead=days_ahead,
+        include_birthdays=include_birthdays,
+        include_namedays=include_namedays,
+        include_anniversaries=include_anniversaries,
+    )
     approved = get_approved_people()
-    sent = 0
-    skipped_self = 0
 
     recipient_events = defaultdict(list)
+    skipped_self = 0
     for event_person, event_type, event_date, days_until in events:
         for recipient in approved:
             if recipient["id"] == event_person["id"]:
@@ -547,6 +614,8 @@ def send_notifications():
                 "days_until": days_until,
             })
 
+    sent_events = 0
+    sent_recipients = 0
     for recipient_id, items in recipient_events.items():
         recipient = items[0]["recipient"]
         event_list = [
@@ -558,20 +627,77 @@ def send_notifications():
             }
             for it in items
         ]
-        event_list.sort(key=lambda ev: ev["event_date"])
+        event_list.sort(key=lambda ev: (ev["days_until"], ev["person_name"]))
         send_event_notifications(
             recipient["email"],
             recipient.get("name", recipient["email"]),
             event_list,
         )
-        sent += len(event_list)
+        sent_recipients += 1
+        sent_events += len(event_list)
 
-    flash(
-        f"Odesláno {sent} oznámení pro {len(recipient_events)} příjemců. "
-        f"{skipped_self} vlastních událostí přeskočeno.",
-        "success",
-    )
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+    time_str = now.strftime("%d. %m. %Y v %H:%M")
+
+    if sent_events > 0:
+        status_msg = f"Odesláno {sent_events} oznámení pro {sent_recipients} kolegů ({time_str})"
+    else:
+        status_msg = f"Žádné blížící se události nenalezeny ({time_str})"
+
+    set_setting("last_run_date", today_str)
+    set_setting("last_run_time", time_str)
+    set_setting("last_run_status", status_msg)
+
+    return True, status_msg, sent_events
+
+
+@app.route("/send-notifications", methods=["POST"])
+@admin_required
+def send_notifications():
+    success, msg, count = run_notification_dispatch(force=True)
+    flash(f"Upozornění byla odeslána: {msg}", "success")
     return redirect(url_for("list_people"))
+
+
+def background_notification_scheduler():
+    """
+    Background daemon running in the Flask process.
+    Checks periodically if it is time to dispatch daily notifications.
+    """
+    time.sleep(5)
+    while True:
+        try:
+            settings = get_all_settings()
+            if settings.get("auto_send_enabled") == "1":
+                send_time = settings.get("send_time", "08:00").strip()
+                last_run_date = settings.get("last_run_date", "").strip()
+                now = datetime.now()
+                today_str = now.strftime("%Y-%m-%d")
+                current_time_str = now.strftime("%H:%M")
+
+                if last_run_date != today_str and current_time_str >= send_time:
+                    logging.info(f"Spouštím automatické denní rozesílání oznámení ({current_time_str})...")
+                    run_notification_dispatch(force=False)
+        except Exception as exc:
+            logging.error(f"Chyba v plánovači automatického rozesílání: {exc}")
+        time.sleep(30)
+
+
+_scheduler_started = False
+
+
+def start_scheduler():
+    global _scheduler_started
+    if not _scheduler_started:
+        _scheduler_started = True
+        t = threading.Thread(target=background_notification_scheduler, daemon=True, name="NotificationScheduler")
+        t.start()
+
+
+# Start background worker when app initializes (guarded against werkzeug reloader duplicate)
+if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or os.environ.get("FLASK_DEBUG") != "1":
+    start_scheduler()
 
 
 if __name__ == "__main__":

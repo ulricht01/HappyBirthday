@@ -105,6 +105,12 @@ def init_db():
         "names TEXT NOT NULL, "
         "search_names TEXT NOT NULL)"
     )
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS app_settings ("
+        "key TEXT PRIMARY KEY, "
+        "value TEXT NOT NULL, "
+        "updated_at TEXT NOT NULL)"
+    )
     conn.commit()
 
     # Populate czech_name_days table if empty
@@ -370,14 +376,68 @@ def delete_person(person_id):
     conn.close()
 
 
-def get_upcoming_events(days_ahead=30):
+DEFAULT_SETTINGS = {
+    "auto_send_enabled": "1",
+    "send_time": "08:00",
+    "days_ahead": "0",
+    "notify_birthdays": "1",
+    "notify_namedays": "1",
+    "notify_anniversaries": "1",
+    "last_run_date": "",
+    "last_run_time": "",
+    "last_run_status": "Zatím nespuštěno",
+}
+
+
+def get_all_settings():
+    conn = get_connection()
+    c = _dict_cursor(conn)
+    c.execute("SELECT key, value FROM app_settings")
+    rows = c.fetchall()
+    conn.close()
+    settings = dict(DEFAULT_SETTINGS)
+    for r in rows:
+        settings[r["key"]] = r["value"]
+    return settings
+
+
+def get_setting(key, default=None):
+    conn = get_connection()
+    c = _dict_cursor(conn)
+    c.execute("SELECT value FROM app_settings WHERE key = %s", (key,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return row["value"]
+    return DEFAULT_SETTINGS.get(key, default)
+
+
+def set_setting(key, value):
+    conn = get_connection()
+    c = _dict_cursor(conn)
+    now = now_iso()
+    c.execute("SELECT key FROM app_settings WHERE key = %s", (key,))
+    if c.fetchone():
+        c.execute("UPDATE app_settings SET value = %s, updated_at = %s WHERE key = %s", (str(value), now, key))
+    else:
+        c.execute("INSERT INTO app_settings (key, value, updated_at) VALUES (%s, %s, %s)", (key, str(value), now))
+    conn.commit()
+    conn.close()
+
+
+def update_settings(settings_dict):
+    for k, v in settings_dict.items():
+        set_setting(k, v)
+
+
+def get_upcoming_events(days_ahead=30, include_birthdays=True, include_namedays=True, include_anniversaries=True):
     today = date.today()
     cutoff = today + timedelta(days=days_ahead)
     results = []
     people = get_approved_people()
     for p in people:
         events = []
-        if p["date_of_birth"]:
+        if include_birthdays and p["date_of_birth"]:
             try:
                 dob = date.fromisoformat(p["date_of_birth"])
                 next_birthday = date(today.year, dob.month, dob.day)
@@ -387,7 +447,7 @@ def get_upcoming_events(days_ahead=30):
                     events.append(("birthday", next_birthday, (next_birthday - today).days))
             except ValueError:
                 pass
-        if p["name_day"]:
+        if include_namedays and p["name_day"]:
             try:
                 s = str(p["name_day"]).strip()
                 if "." in s:
@@ -404,7 +464,7 @@ def get_upcoming_events(days_ahead=30):
                         events.append(("name_day", nd, (nd - today).days))
             except (ValueError, AttributeError):
                 pass
-        if p["first_day_job"]:
+        if include_anniversaries and p["first_day_job"]:
             try:
                 fdj = date.fromisoformat(p["first_day_job"])
                 next_anniv = date(today.year, fdj.month, fdj.day)

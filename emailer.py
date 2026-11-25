@@ -208,37 +208,61 @@ def send_admin_code(to_email, code):
 
 def _events_html_table(events):
     """Build an HTML table listing only the upcoming events (no personal bio)."""
-    event_labels_cs = {
-        "birthday": "Narozeniny",
-        "name_day": "Svatky",
-        "job_anniversary": "Vyroci v zamestnani",
-    }
+    return _events_html_table(events)
 
+
+def _format_days_until(days_until: int) -> str:
+    if days_until == 0:
+        return "<strong style='color:#de401a;'>Dnes! 🎂</strong>"
+    if days_until == 1:
+        return "Zítra"
+    if days_until in (2, 3, 4):
+        return f"Za {days_until} dny"
+    return f"Za {days_until} dní"
+
+
+def _format_days_until_plain(days_until: int) -> str:
+    if days_until == 0:
+        return "Dnes!"
+    if days_until == 1:
+        return "Zítra"
+    if days_until in (2, 3, 4):
+        return f"Za {days_until} dny"
+    return f"Za {days_until} dní"
+
+
+def _events_html_table(events):
+    event_labels_cs = {
+        "birthday": "🎂 Narozeniny",
+        "name_day": "💐 Svátek",
+        "job_anniversary": "🏢 Pracovní výročí",
+    }
     html = (
-        "<table border='1' cellpadding='6' cellspacing='0' "
-        "style='border-collapse:collapse; font-family:sans-serif; font-size:14px;'>"
+        "<table border='0' cellpadding='10' cellspacing='0' style='width:100%; border-collapse:collapse; "
+        "font-family:Roboto,Helvetica,Arial,sans-serif; font-size:14px; margin-top:16px; margin-bottom:20px;'>"
     )
     html += (
-        "<tr>"
-        "<th style='font-weight:bold; text-align:left;'>Udalost</th>"
-        "<th style='font-weight:bold; text-align:left;'>Osoba</th>"
-        "<th style='font-weight:bold; text-align:left;'>Datum</th>"
-        "<th style='font-weight:bold; text-align:left;'>Za kolik dni</th>"
+        "<tr style='background-color:#fff0eb; border-bottom:2px solid #de401a; color:#222222;'>"
+        "<th style='padding:10px 12px; text-align:left;'>Událost</th>"
+        "<th style='padding:10px 12px; text-align:left;'>Kolega / kolegyně</th>"
+        "<th style='padding:10px 12px; text-align:left;'>Datum</th>"
+        "<th style='padding:10px 12px; text-align:left;'>Kdy</th>"
         "</tr>"
     )
-    for ev in events:
+    for i, ev in enumerate(events):
         label = event_labels_cs.get(ev["event_type"], ev["event_type"])
         event_date = ev["event_date"]
         if hasattr(event_date, "strftime"):
             date_str = event_date.strftime("%d. %m. %Y")
         else:
             date_str = str(event_date)
+        bg = "#ffffff" if i % 2 == 0 else "#fcfcfd"
         html += (
-            f"<tr>"
-            f"<td>{label}</td>"
-            f"<td>{ev['person_name']}</td>"
-            f"<td>{date_str}</td>"
-            f"<td>{ev['days_until']} dni</td>"
+            f"<tr style='background-color:{bg}; border-bottom:1px solid #e5e7eb;'>"
+            f"<td style='padding:10px 12px;'>{label}</td>"
+            f"<td style='padding:10px 12px; font-weight:600;'>{ev['person_name']}</td>"
+            f"<td style='padding:10px 12px; color:#555555;'>{date_str}</td>"
+            f"<td style='padding:10px 12px;'>{_format_days_until(ev['days_until'])}</td>"
             f"</tr>"
         )
     html += "</table>"
@@ -247,40 +271,69 @@ def _events_html_table(events):
 
 def send_event_notifications(recipient_email, recipient_name, events):
     """Send one email to a recipient with a table of upcoming events (not their own)."""
+    if not events:
+        return
+
     event_labels_cs = {
-        "birthday": "Narozeniny",
-        "name_day": "Svatky",
-        "job_anniversary": "Vyroci v zamestnani",
+        "birthday": "narozeniny",
+        "name_day": "svátek",
+        "job_anniversary": "pracovní výročí",
     }
 
     if len(events) == 1:
-        label = event_labels_cs.get(events[0]["event_type"], events[0]["event_type"])
-        subject = f"\U0001f389 {label} je za {events[0]['days_until']} dnu"
+        ev = events[0]
+        label = event_labels_cs.get(ev["event_type"], ev["event_type"])
+        if ev["days_until"] == 0:
+            subject = f"🎉 Dnes má {label} {ev['person_name']}!"
+        elif ev["days_until"] == 1:
+            subject = f"🎉 Zítra má {label} {ev['person_name']}"
+        else:
+            subject = f"🎉 {ev['person_name']} má {label} {_format_days_until_plain(ev['days_until']).lower()}"
     else:
-        subject = f"\U0001f389 Blizici se udalosti ({len(events)})"
+        if all(ev["days_until"] == 0 for ev in events):
+            subject = f"🎉 Dnešní oslavenci na SPŠUL ({len(events)})"
+        else:
+            subject = f"🎉 Nadcházející události a oslavenci ({len(events)})"
 
     msg = EmailMessage()
     msg["To"] = recipient_email
     msg["Subject"] = subject
 
     html = f"""
+    <!DOCTYPE html>
     <html>
-    <body style='font-family:sans-serif;'>
-      <h2>\U0001f389 Blizici se udalosti</h2>
-      <p>Ahoj {recipient_name},</p>
-      <p>Mame pro vas seznam nadchazejicich udalosti (krome vasich vlastnich):</p>
-      {_events_html_table(events)}
-      <p><br/><br/>Prejeme hezky den,<br/>Tym HappyBirthday</p>
+    <head>
+      <meta charset="utf-8">
+      <title>{subject}</title>
+    </head>
+    <body style='font-family:Roboto,Helvetica,Arial,sans-serif; background-color:#fffaf5; margin:0; padding:24px; color:#222222;'>
+      <div style='max-width:640px; margin:0 auto; background-color:#ffffff; border-radius:12px; border:1px solid #f0e6dd; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.04);'>
+        <div style='background-color:#de401a; padding:20px 24px; color:#ffffff;'>
+          <h2 style='margin:0; font-size:1.25rem; font-weight:700;'>🎉 Narozeniny a svátky SPŠUL</h2>
+        </div>
+        <div style='padding:24px;'>
+          <p style='font-size:1rem; margin-top:0;'>Dobrý den, <strong>{recipient_name}</strong>,</p>
+          <p style='color:#555555; line-height:1.5;'>přinášíme vám přehled nadcházejících událostí a výročí vašich kolegů:</p>
+          {_events_html_table(events)}
+          <p style='color:#666666; font-size:0.9rem; margin-top:20px; line-height:1.5;'>
+            Nezapomeňte kolegům popřát a oslavit jejich den! ☕🎂
+          </p>
+          <hr style='border:none; border-top:1px solid #eeeeee; margin:24px 0;' />
+          <p style='font-size:0.8rem; color:#888888; margin-bottom:0;'>
+            Střední průmyslová škola Ústí nad Labem &bull; Automatické interní oznámení
+          </p>
+        </div>
+      </div>
     </body>
     </html>
     """
 
     lines = [
-        f"\U0001f389 Blizici se udalosti",
+        f"Narozeniny a svátky SPŠUL",
+        "========================================",
+        f"Dobrý den, {recipient_name},",
         "",
-        f"Ahoj {recipient_name},",
-        "",
-        "Mame pro vas seznam nadchazejicich udalosti (krome vasich vlastnich):",
+        "přinášíme vám přehled nadcházejících událostí a výročí vašich kolegů:",
         "",
     ]
     for ev in events:
@@ -290,16 +343,13 @@ def send_event_notifications(recipient_email, recipient_name, events):
             date_str = event_date.strftime("%d. %m. %Y")
         else:
             date_str = str(event_date)
-        lines.append(
-            f"- {label}: {ev['person_name']}, {date_str} (za {ev['days_until']} dni)"
-        )
-    lines.extend(
-        [
-            "",
-            "Prejeme hezky den,",
-            "Tym HappyBirthday",
-        ]
-    )
+        timing = _format_days_until_plain(ev['days_until'])
+        lines.append(f"- {ev['person_name']} ({label}): {date_str} [{timing}]")
+    lines.extend([
+        "",
+        "Přejeme hezký den,",
+        "Střední průmyslová škola Ústí nad Labem",
+    ])
 
     msg.set_content("\n".join(lines))
     msg.add_alternative(html, subtype="html")
