@@ -492,14 +492,16 @@ def admin_dashboard():
 @admin_required
 def admin_save_notification_settings():
     auto_send_enabled = "1" if request.form.get("auto_send_enabled") else "0"
+    send_frequency = request.form.get("send_frequency", "daily").strip()
     send_time = request.form.get("send_time", "08:00").strip()
-    days_ahead = request.form.get("days_ahead", "0").strip()
+    days_ahead = request.form.get("days_ahead", "auto").strip()
     notify_birthdays = "1" if request.form.get("notify_birthdays") else "0"
     notify_namedays = "1" if request.form.get("notify_namedays") else "0"
     notify_anniversaries = "1" if request.form.get("notify_anniversaries") else "0"
 
     update_settings({
         "auto_send_enabled": auto_send_enabled,
+        "send_frequency": send_frequency,
         "send_time": send_time,
         "days_ahead": days_ahead,
         "notify_birthdays": notify_birthdays,
@@ -571,6 +573,24 @@ def list_people():
     return render_template("list_people.html", people=people)
 
 
+def is_scheduled_day(frequency: str, now: datetime) -> bool:
+    """
+    Checks if today matches the configured schedule frequency:
+    - 'daily': Every day
+    - 'weekly': Mondays (weekday == 0)
+    - 'monthly': 1st day of month (day == 1)
+    - 'weekly_and_monthly': Mondays OR 1st day of month
+    """
+    freq = (frequency or "daily").strip().lower()
+    if freq == "weekly":
+        return now.weekday() == 0
+    if freq == "monthly":
+        return now.day == 1
+    if freq == "weekly_and_monthly":
+        return now.weekday() == 0 or now.day == 1
+    return True
+
+
 def run_notification_dispatch(force=False):
     """
     Executes event notification dispatch based on configured app settings.
@@ -582,10 +602,22 @@ def run_notification_dispatch(force=False):
     if not auto_enabled and not force:
         return False, "Automatické odesílání je v nastavení vypnuto.", 0
 
-    try:
-        days_ahead = int(settings.get("days_ahead", "0"))
-    except ValueError:
-        days_ahead = 0
+    raw_days_ahead = str(settings.get("days_ahead", "auto")).strip()
+    frequency = settings.get("send_frequency", "daily").strip()
+    now = datetime.now()
+
+    if raw_days_ahead == "auto":
+        if frequency == "monthly" or (frequency == "weekly_and_monthly" and now.day == 1):
+            days_ahead = 31
+        elif frequency == "weekly" or (frequency == "weekly_and_monthly" and now.weekday() == 0):
+            days_ahead = 7
+        else:
+            days_ahead = 0
+    else:
+        try:
+            days_ahead = int(raw_days_ahead)
+        except ValueError:
+            days_ahead = 0
 
     include_birthdays = settings.get("notify_birthdays") == "1"
     include_namedays = settings.get("notify_namedays") == "1"
@@ -636,7 +668,6 @@ def run_notification_dispatch(force=False):
         sent_recipients += 1
         sent_events += len(event_list)
 
-    now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
     time_str = now.strftime("%d. %m. %Y v %H:%M")
 
@@ -663,13 +694,14 @@ def send_notifications():
 def background_notification_scheduler():
     """
     Background daemon running in the Flask process.
-    Checks periodically if it is time to dispatch daily notifications.
+    Checks periodically if it is time to dispatch notifications based on frequency and time.
     """
     time.sleep(5)
     while True:
         try:
             settings = get_all_settings()
             if settings.get("auto_send_enabled") == "1":
+                frequency = settings.get("send_frequency", "daily").strip()
                 send_time = settings.get("send_time", "08:00").strip()
                 last_run_date = settings.get("last_run_date", "").strip()
                 now = datetime.now()
@@ -677,8 +709,9 @@ def background_notification_scheduler():
                 current_time_str = now.strftime("%H:%M")
 
                 if last_run_date != today_str and current_time_str >= send_time:
-                    logging.info(f"Spouštím automatické denní rozesílání oznámení ({current_time_str})...")
-                    run_notification_dispatch(force=False)
+                    if is_scheduled_day(frequency, now):
+                        logging.info(f"Spouštím automatické {frequency} rozesílání oznámení ({current_time_str})...")
+                        run_notification_dispatch(force=False)
         except Exception as exc:
             logging.error(f"Chyba v plánovači automatického rozesílání: {exc}")
         time.sleep(30)

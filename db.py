@@ -378,8 +378,9 @@ def delete_person(person_id):
 
 DEFAULT_SETTINGS = {
     "auto_send_enabled": "1",
+    "send_frequency": "daily",
     "send_time": "08:00",
-    "days_ahead": "0",
+    "days_ahead": "auto",
     "notify_birthdays": "1",
     "notify_namedays": "1",
     "notify_anniversaries": "1",
