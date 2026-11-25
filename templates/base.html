@@ -22,19 +22,26 @@
                     <a href="/add" class="spsul-nav-link {% if request.path == '/add' or request.path == '/' %}active{% endif %}">
                         Můj profil
                     </a>
+
+                    {% if session.admin_auth %}
                     <a href="/people" class="spsul-nav-link {% if request.path == '/people' %}active{% endif %}">
                         Seznam oslavenců
                     </a>
-                    {% if session.admin_auth %}
                     <a href="/admin/dashboard" class="spsul-nav-link {% if '/admin' in request.path and request.path != '/admin/logout' %}active{% endif %}">
                         Správa
                     </a>
+                    <span class="spsul-user-badge" style="background: var(--color-uspech-tint); color: var(--color-uspech);">
+                        Správce ({{ session.user_email or 'oslavnik@spsul.cz' }})
+                    </span>
                     <a href="/admin/logout" class="spsul-nav-link" style="color: var(--color-chyba);">
                         Odhlásit
                     </a>
-                    {% else %}
-                    <a href="/admin" class="spsul-nav-link {% if '/admin' in request.path %}active{% endif %}">
-                        Přihlášení správce
+                    {% elif session.user_email %}
+                    <span class="spsul-user-badge">
+                        {{ session.user_name or session.user_email }}
+                    </span>
+                    <a href="/logout" class="spsul-nav-link" style="color: var(--color-muted);">
+                        Odhlásit
                     </a>
                     {% endif %}
                 </nav>
@@ -71,6 +78,9 @@
                     <strong>Střední průmyslová škola Ústí nad Labem</strong> &bull; Interní systém pro připomínání narozenin, svátků a pracovních výročí
                 </div>
                 <div>
+                    {% if not session.admin_auth %}
+                    <a href="/admin" style="color: var(--color-muted); font-size: 0.8rem; margin-right: 16px;">Správa (kód)</a>
+                    {% endif %}
                     Podle standardů <a href="https://github.com/Jaqquca/spsul-handbook" target="_blank" rel="noopener">SPŠUL Handbook</a>
                 </div>
             </div>

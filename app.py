@@ -125,14 +125,15 @@ def add_person():
                 entra_configured=is_entra_configured(),
             )
 
-        # If user came from verified Entra login, skip email verification code!
+        # If user came from verified Entra login, update profile and activate
         if entra_user and entra_user.get("email") == email:
             add_or_update_person_entra(
-                email, name, date_of_birth, first_day_job, name_day, about_info
+                email, name, date_of_birth, first_day_job, name_day, about_info, status="approved"
             )
-            send_owner_notification(name, email)
-            session.pop("entra_user", None)
-            flash("Váš profil byl úspěšně uložen a odeslán ke schválení administrátorovi.", "success")
+            session["entra_user"]["date_of_birth"] = date_of_birth or ""
+            session["entra_user"]["first_day_job"] = first_day_job or ""
+            session["entra_user"]["name_day"] = name_day or ""
+            flash("Váš profil byl úspěšně uložen! Oznámení o narozeninách a svátcích kolegů vám budou chodit automaticky.", "success")
             return redirect(url_for("verify_success"))
 
         # Manual entry -> require email verification code
@@ -212,6 +213,27 @@ def auth_callback():
         # Auto-detect Czech name day from first name
         code_nd, _, _ = get_name_day_for_first_name(name)
 
+        # Check if user is the admin (owner)
+        owner_email = os.getenv("OWNER_EMAIL", "oslavnik@spsul.cz").strip().lower()
+        if email.lower() == owner_email:
+            session["admin_auth"] = True
+            session["user_email"] = email
+            session["user_name"] = name
+            flash(f"Vítejte v administraci, {name}!", "success")
+            return redirect(url_for("admin_dashboard"))
+
+        # Regular school employee logged in via Entra:
+        # Save directly as approved so they will automatically receive emails
+        add_or_update_person_entra(
+            email=email,
+            name=name,
+            date_of_birth=dob,
+            first_day_job=fdj,
+            name_day=code_nd,
+            about_info="",
+            status="approved",
+        )
+
         session["entra_user"] = {
             "email": email,
             "name": name,
@@ -219,15 +241,15 @@ def auth_callback():
             "first_day_job": fdj or "",
             "name_day": code_nd or "",
         }
+        session["user_email"] = email
+        session["user_name"] = name
 
-        # If user is owner email, grant admin access directly
-        owner_email = os.getenv("OWNER_EMAIL")
-        if owner_email and email.lower() == owner_email.lower():
-            session["admin_auth"] = True
-            flash(f"Vítejte, {name}! Byli jste přihlášeni jako administrátor přes Microsoft Entra ID.", "success")
-            return redirect(url_for("admin_dashboard"))
+        # If birth date is already filled, user is all set!
+        if dob:
+            flash(f"Vítejte, {name}! Váš profil je aktivní a e-mailová upozornění vám budou chodit.", "success")
+            return redirect(url_for("verify_success"))
 
-        flash(f"Přihlášeno přes Microsoft Entra ID ({email}). Vaše údaje byly načteny.", "success")
+        flash(f"Vítejte, {name}! Jste úspěšně přihlášen(a). Zkontrolujte nebo doplňte své datum narození, abychom věděli, kdy vám popřát.", "info")
         return redirect(url_for("add_person"))
     except Exception as exc:
         flash(f"Chyba při zpracování účtu Microsoft Entra ID: {exc}", "error")
@@ -245,6 +267,12 @@ def auth_demo_entra():
         "name_day": "02-22",
     }
     session["entra_user"] = sample
+    session["user_email"] = sample["email"]
+    session["user_name"] = sample["name"]
+    add_or_update_person_entra(
+        sample["email"], sample["name"], sample["date_of_birth"],
+        sample["first_day_job"], sample["name_day"], "", status="approved"
+    )
     flash("Údaje byly předvyplněny ze školního účtu Microsoft Entra ID (Demo: novakp@spsul.cz).", "info")
     return redirect(url_for("add_person"))
 
@@ -288,16 +316,24 @@ def verify_success():
 
 
 # ---------------------------------------------------------------------------
-# Admin: one-time access & dashboard
+# Admin & User Access Control
 # ---------------------------------------------------------------------------
 def admin_required(f):
     from functools import wraps
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get("admin_auth"):
+            flash("Tato sekce je přístupná pouze pro administrátora aplikace (oslavnik@spsul.cz).", "error")
             return redirect(url_for("admin_request"))
         return f(*args, **kwargs)
     return decorated
+
+
+@app.route("/logout", methods=["GET"])
+def user_logout():
+    session.clear()
+    flash("Byli jste úspěšně odhlášeni.", "info")
+    return redirect(url_for("add_person"))
 
 
 @app.route("/admin", methods=["GET"])
@@ -312,7 +348,7 @@ def admin_request():
 
 @app.route("/admin/request-code", methods=["POST"])
 def admin_request_code():
-    owner_email = os.getenv("OWNER_EMAIL")
+    owner_email = os.getenv("OWNER_EMAIL", "oslavnik@spsul.cz")
     if not owner_email:
         flash("OWNER_EMAIL není nakonfigurováno na serveru.", "error")
         return redirect(url_for("admin_request"))
@@ -322,7 +358,7 @@ def admin_request_code():
     create_admin_code(code, expires_minutes=15)
     send_admin_code(owner_email, code)
 
-    flash("Jednorázový administrátorský kód byl odeslán na e-mail správce.", "info")
+    flash(f"Jednorázový administrátorský kód byl odeslán na e-mail správce ({owner_email}).", "info")
     return redirect(url_for("admin_enter_code"))
 
 
@@ -332,6 +368,8 @@ def admin_enter_code():
         code = request.form.get("code", "").strip().upper()
         if verify_admin_code(code):
             session["admin_auth"] = True
+            session["user_email"] = os.getenv("OWNER_EMAIL", "oslavnik@spsul.cz")
+            session["user_name"] = "Správce"
             flash("Přístup do administrace byl udělen.", "success")
             return redirect(url_for("admin_dashboard"))
         flash("Neplatný nebo expirovaný kód správce.", "error")
@@ -370,19 +408,21 @@ def admin_reject(person_id):
 def admin_logout():
     session.pop("admin_auth", None)
     flash("Byli jste odhlášeni z administrace.", "info")
-    return redirect(url_for("index"))
+    return redirect(url_for("add_person"))
 
 
 # ---------------------------------------------------------------------------
-# Notifications: +30 days scan
+# Notifications & People (Admin Only)
 # ---------------------------------------------------------------------------
 @app.route("/people", methods=["GET"])
+@admin_required
 def list_people():
     people = get_all_people()
     return render_template("list_people.html", people=people)
 
 
 @app.route("/send-notifications", methods=["POST"])
+@admin_required
 def send_notifications():
     events = get_upcoming_events(days_ahead=30)
     approved = get_approved_people()

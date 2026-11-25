@@ -1,22 +1,22 @@
 {% extends "base.html" %}
 
-{% block title %}Profil uložen{% endblock %}
+{% block title %}Profil aktivní — SPŠUL{% endblock %}
 
 {% block content %}
 <div style="max-width: 560px; margin-inline: auto;">
     <div class="card" style="text-align: center; padding: 40px 24px;">
-        <div style="font-size: 3rem; margin-bottom: 16px;">✅</div>
-        <h2>Váš profil byl úspěšně zaznamenán!</h2>
-        <p style="color: var(--color-muted); margin-bottom: 24px; font-size: 1.05rem;">
-            E-mail byl ověřen a váš profil byl předán správci aplikace ke schválení. Jakmile správce záznam schválí, budete zařazeni do rozesílání gratulací a oznámení.
+        <div style="font-size: 3.5rem; margin-bottom: 16px;">🎉</div>
+        <h2>Vše je nastaveno!</h2>
+        <p style="color: var(--color-muted); margin-bottom: 24px; font-size: 1.05rem; line-height: 1.6;">
+            Váš profil byl úspěšně uložen. Nyní vám budou včas chodit e-mailová upozornění o blížících se narozeninách a svátcích vašich kolegů ze školy.
         </p>
 
         <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
-            <a href="/people" class="btn btn-primary">
-                Přejít na seznam oslavenců &rarr;
+            <a href="/add" class="btn btn-primary">
+                Zobrazit / upravit můj profil &rarr;
             </a>
-            <a href="/" class="btn btn-secondary">
-                Zpět na úvod
+            <a href="/logout" class="btn btn-secondary">
+                Odhlásit se
             </a>
         </div>
     </div>

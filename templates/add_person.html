@@ -127,14 +127,16 @@
             <div style="margin-top: 28px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
                 <button type="submit" class="btn btn-primary">
                     {% if entra_user and entra_user.email %}
-                    Uložit profil a odeslat ke schválení &rarr;
+                    Uložit profil a potvrdit &rarr;
                     {% else %}
                     Pokračovat k ověření e-mailu &rarr;
                     {% endif %}
                 </button>
+                {% if session.admin_auth %}
                 <a href="/people" class="btn btn-secondary">
-                    Zpět na přehled
+                    Zpět na přehled oslavenců
                 </a>
+                {% endif %}
             </div>
         </form>
     </div>
