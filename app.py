@@ -687,10 +687,29 @@ def run_notification_dispatch(force=False, override_days_ahead=None, send_to_adm
     for item in events:
         event_person, event_type, event_date, days_until = item[0], item[1], item[2], item[3]
         years_count = item[4] if len(item) > 4 else None
+
+        ev_id = str(event_person.get("id", "")).strip()
+        ev_email = (event_person.get("email") or "").strip().lower()
+        ev_name = (event_person.get("name") or "").strip().lower()
+
         for recipient in approved:
-            if recipient["id"] == event_person["id"]:
+            rec_id = str(recipient.get("id", "")).strip()
+            rec_email = (recipient.get("email") or "").strip().lower()
+            rec_name = (recipient.get("name") or "").strip().lower()
+
+            # Strict self-exclusion check: ID, email, or name
+            is_self = False
+            if ev_id and rec_id and ev_id == rec_id:
+                is_self = True
+            elif ev_email and rec_email and ev_email == rec_email:
+                is_self = True
+            elif ev_name and rec_name and ev_name == rec_name:
+                is_self = True
+
+            if is_self:
                 skipped_self += 1
                 continue
+
             recipient_events[recipient["id"]].append({
                 "recipient": recipient,
                 "event_person": event_person,
@@ -702,11 +721,14 @@ def run_notification_dispatch(force=False, override_days_ahead=None, send_to_adm
 
     sent_events = 0
     sent_recipients = 0
+    sent_emails_set = set()
+
     for recipient_id, items in recipient_events.items():
         recipient = items[0]["recipient"]
         event_list = [
             {
                 "person_name": it["event_person"]["name"],
+                "person_email": it["event_person"].get("email"),
                 "event_type": it["event_type"],
                 "event_date": it["event_date"],
                 "days_until": it["days_until"],
@@ -722,53 +744,61 @@ def run_notification_dispatch(force=False, override_days_ahead=None, send_to_adm
         )
         sent_recipients += 1
         sent_events += len(event_list)
+        sent_emails_set.add((recipient["email"] or "").strip().lower())
 
-    # If send_to_admin is set (from test send button), ensure admin gets a preview copy
+    # If send_to_admin is set (from test send button), send a preview copy if admin hasn't received one already
     if send_to_admin:
-        if events:
+        admin_email_norm = str(send_to_admin).strip().lower()
+        if admin_email_norm not in sent_emails_set:
             admin_event_list = [
                 {
                     "person_name": it[0]["name"],
+                    "person_email": it[0].get("email"),
                     "event_type": it[1],
                     "event_date": it[2],
                     "days_until": it[3],
                     "years_count": it[4] if len(it) > 4 else None,
                 }
                 for it in events
+                # NEVER include admin's own events in the notification sent to admin!
+                if (it[0].get("email") or "").strip().lower() != admin_email_norm
             ]
-            admin_event_list.sort(key=lambda ev: (ev["days_until"], ev["person_name"]))
-            send_event_notifications(
-                send_to_admin,
-                "Správce",
-                admin_event_list,
-            )
-            sent_recipients += 1
-            sent_events += len(admin_event_list)
-        elif force:
-            # When testing with 0 events in DB, send a sample mock email so admin can verify SMTP
-            sample_events = [
-                {
-                    "person_name": "Jan Novák (Ukázka)",
-                    "event_type": "birthday",
-                    "event_date": date.today(),
-                    "days_until": 0,
-                    "years_count": 40,
-                },
-                {
-                    "person_name": "Marie Svobodová (Ukázka)",
-                    "event_type": "job_anniversary",
-                    "event_date": date.today(),
-                    "days_until": 0,
-                    "years_count": 10,
-                },
-            ]
-            send_event_notifications(
-                send_to_admin,
-                "Správce",
-                sample_events,
-            )
-            sent_recipients += 1
-            sent_events += len(sample_events)
+            if admin_event_list:
+                admin_event_list.sort(key=lambda ev: (ev["days_until"], ev["person_name"]))
+                send_event_notifications(
+                    send_to_admin,
+                    "Správce",
+                    admin_event_list,
+                )
+                sent_recipients += 1
+                sent_events += len(admin_event_list)
+            elif force:
+                # If all events in DB belonged to the admin themselves, send mock sample
+                sample_events = [
+                    {
+                        "person_name": "Jan Novák (Ukázka)",
+                        "person_email": "novak.ukazka@spsul.cz",
+                        "event_type": "birthday",
+                        "event_date": date.today(),
+                        "days_until": 0,
+                        "years_count": 40,
+                    },
+                    {
+                        "person_name": "Marie Svobodová (Ukázka)",
+                        "person_email": "svobodova.ukazka@spsul.cz",
+                        "event_type": "job_anniversary",
+                        "event_date": date.today(),
+                        "days_until": 0,
+                        "years_count": 10,
+                    },
+                ]
+                send_event_notifications(
+                    send_to_admin,
+                    "Správce",
+                    sample_events,
+                )
+                sent_recipients += 1
+                sent_events += len(sample_events)
 
     now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")

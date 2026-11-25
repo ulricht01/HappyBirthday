@@ -317,9 +317,28 @@ def _events_html_table(events):
 
 
 def send_event_notifications(recipient_email, recipient_name, events):
-    """Send one email to a recipient with a table of upcoming events (not their own)."""
-    if not events:
+    """Send one email to a recipient with a table of upcoming events (strictly never their own)."""
+    if not events or not recipient_email:
         return
+
+    recip_email_norm = str(recipient_email).strip().lower()
+    recip_name_norm = str(recipient_name or "").strip().lower()
+
+    # Defense in depth: strictly filter out any event belonging to the recipient themselves!
+    clean_events = []
+    for ev in events:
+        ev_email = str(ev.get("person_email") or "").strip().lower()
+        ev_name = str(ev.get("person_name") or "").strip().lower()
+        if ev_email and ev_email == recip_email_norm:
+            continue
+        if ev_name and recip_name_norm and ev_name == recip_name_norm:
+            continue
+        clean_events.append(ev)
+
+    if not clean_events:
+        return
+
+    events = clean_events
 
     if len(events) == 1:
         ev = events[0]
