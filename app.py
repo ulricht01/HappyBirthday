@@ -52,16 +52,17 @@ def _get_entra_redirect_uri():
     """
     Returns the redirect URI for Microsoft Entra ID callback.
     Prefers explicit ENTRA_REDIRECT_URI from .env, or forces HTTPS for public domains behind reverse proxy.
+    Cleans up any accidental trailing dots or slashes.
     """
     env_redirect = os.getenv("ENTRA_REDIRECT_URI")
     if env_redirect:
-        return env_redirect.strip()
+        return env_redirect.strip().rstrip(".").rstrip("/")
 
     uri = url_for("auth_callback", _external=True)
     proto = request.headers.get("X-Forwarded-Proto", "").lower()
     if proto == "https" or (not uri.startswith("http://localhost") and not uri.startswith("http://127.0.0.1")):
         uri = uri.replace("http://", "https://", 1)
-    return uri
+    return uri.rstrip(".").rstrip("/")
 
 
 # ---------------------------------------------------------------------------
